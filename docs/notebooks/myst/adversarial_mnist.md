@@ -12,7 +12,7 @@ kernelspec:
   name: python3
 ---
 
-+++ {"nbsphinx": "hidden"}
++++ {"nbsphinx": "hidden", "slideshow": {"slide_type": "skip"}}
 
 <div class="alert alert-warning">
 warning
@@ -22,7 +22,7 @@ If you want to make modification please modify the .md version
 
 </div>
 
-+++
++++ {"slideshow": {"slide_type": "skip"}}
 
 <div class="alert alert-warning">
 warning
@@ -32,6 +32,8 @@ can occur without notice.
 
 </div>
 
++++ {"slideshow": {"slide_type": "slide"}}
+
 # Adversarial Machine Learning
 
 In this example, we show how to use Gurobi Machine Learning to construct an
@@ -39,6 +41,8 @@ adversarial example for a trained neural network.
 
 We use the MNIST handwritten digit database (http://yann.lecun.com/exdb/mnist/)
 for this example.
+
++++ {"slideshow": {"slide_type": "subslide"}}
 
 For this problem, we are given a trained neural network and one well classified
 example $\bar x$. Our goal is to construct another example $x$ _close to_ $\bar
@@ -49,7 +53,68 @@ For the hand digit recognition problem, the input is a grayscale image of $28
 corresponding to a digit). We denote the output vector by $y$. The image is
 classified according to the largest entry of $y$.
 
-For the training example, assume that coordinate $l$ of the output vector was
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: skip
+---
+import gurobipy as gp
+import numpy as np
+from joblib import load
+from matplotlib import pyplot as plt
+
+from gurobi_ml.sklearn import add_mlp_regressor_constr
+```
+
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
+# Load the trained network and the examples
+mnist_data = load("../../../tests/predictors/mnist__mlpclassifier.joblib")
+X = mnist_data["data"]
+nn = mnist_data["predictor"]
+# Choose an example
+exampleno = 26
+example = X[exampleno : exampleno + 1, :]
+```
+
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
+pixels = example.reshape((28, 28))
+plt.imshow(pixels, cmap="gray")
+plt.show()
+```
+
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
+print(f"Predicted label {nn.predict(example)}")
+```
+
++++ {"slideshow": {"slide_type": "subslide"}}
+
+We use `predict_proba` to get the weight for each label given by the neural
+network.
+
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
+ex_prob = nn.predict_proba(example)
+ex_prob
+```
+
++++ {"slideshow": {"slide_type": "subslide"}}
+
+For this training example, coordinate $l=4$ of the output vector is
 the one with the largest value giving the correct label. We pick a coordinate
 corresponding to another label, denoted $w$, and we want the difference between
 $y_w - y_l$ to be as large as possible.
@@ -58,11 +123,26 @@ If we can find a solution where this difference is positive, then $x$ is a
 counter-example that will receive a different label. If instead we can show that
 the difference is non-positive, no such counter-example exists.
 
-In this example, we define the neighborhood using the $l1-$norm $|| x - \bar x
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
+sorted_labels = np.argsort(ex_prob)[0]
+right_label = sorted_labels[-1]
+wrong_label = sorted_labels[-2]
+print(f"The wrong label we choose is {wrong_label}")
+```
+
++++ {"slideshow": {"slide_type": "subslide"}}
+
+We define the neighborhood using the $l1-$norm $|| x - \bar x
 ||_1$. The size of the neighborhood is defined by a fixed parameter $\delta$. We
 want
 
 $$ || x - \bar x ||_1 \le \delta. $$
+
++++ {"slideshow": {"slide_type": "subslide"}}
 
 If we denote by $g$ the prediction function of the neural network. Our full
 optimization model reads:
@@ -76,102 +156,54 @@ $$ \begin{aligned} &\max y_w - y_l \\
 Our model is inspired by <cite data-cite="fischetti_jo_2018">Fischet al.
 (2018)</cite>.
 
-## Imports and loading data
++++ {"slideshow": {"slide_type": "slide"}}
 
-First, we import the required packages for this example.
+## Optimization Model
 
-In addition to the usual packages, we will need `matplotlib` to plot the digits,
-and `joblib` to load a pre-trained network and part of the training data.
+Now build the model with gurobipy
 
-Note that from the `gurobi_ml` package we need to use directly the
-`add_mlp_regressor_constr` function for reasons that will be clarified later.
++++ {"slideshow": {"slide_type": "slide"}}
 
-```{code-cell}
-import gurobipy as gp
-import numpy as np
-from joblib import load
-from matplotlib import pyplot as plt
-
-from gurobi_ml.sklearn import add_mlp_regressor_constr
-```
-
-Now we can load the data.
-
-We load a neural network that was pre-trained with Scikit-learn MLPRegressor.
-The network is quite small (2 hidden layers of 50 neurons), finding a counter
-example shouldn't be too difficult.
-
-We also load the first 100 training examples of the MNIST dataset that we saved
-to avoid having to reload the full data set.
-
-```{code-cell}
-# Load the trained network and the examples
-mnist_data = load("../../../tests/predictors/mnist__mlpclassifier.joblib")
-X = mnist_data["data"]
-nn = mnist_data["predictor"]
-```
-
-## Choose an example and set labels
-
-Now we choose an example. Here we chose arbitrarily example 26. We plot the
-example and verify if it is well predicted by calling the `predict` function.
-
-```{code-cell}
-# Choose an example
-exampleno = 26
-example = X[exampleno : exampleno + 1, :]
-
-pixels = example.reshape((28, 28))
-plt.imshow(pixels, cmap="gray")
-plt.show()
-
-print(f"Predicted label {nn.predict(example)}")
-```
-
-To set up the objective function of the optimization model, we need to find a
-wrong label.
-
-We use `predict_proba` to get the weight for each label given by the neural
-network. We then use `numpy`'s `argsort` function to get the labels sorted by
-their weight. The right label is then the last element in the list, and we pick
-the next to last element as the wrong label.
-
-```{code-cell}
-ex_prob = nn.predict_proba(example)
-sorted_labels = np.argsort(ex_prob)[0]
-right_label = sorted_labels[-1]
-wrong_label = sorted_labels[-2]
-```
-
-## Building the optimization model
-
-Now that all the data is gathered we can proceed to build the optimization
-model.
-
-We need to create a matrix variable `x` corresponding to the new input of the
+Create a matrix variable `x` corresponding to the new input of the
 neural network we want to compute and a `y` variables for the output of the
 neural network. Those variables should have respectively the shape of the
 example we picked and the shape of the return value of `predict_proba`.
 
-We also need additional variables to model the $l1-$norm constraint. Namely, for
-each pixel in the image, we need to model the absolute difference between $x$
-and $\bar x$. We will detail the model below. For now, we create the necessary
-variables that are another matrix of variables of same shape as `x`.
-
-We also set the objective which is to maximize the difference between the
-_wrong_ label and the _right_ label.
-
-```{code-cell}
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
 m = gp.Model()
 delta = 5
 
 x = m.addMVar(example.shape, lb=0.0, ub=1.0, name="x")
 y = m.addMVar(ex_prob.shape, lb=-gp.GRB.INFINITY, name="y")
+```
 
-abs_diff = m.addMVar(example.shape, lb=0, ub=1, name="abs_diff")
++++ {"slideshow": {"slide_type": "slide"}}
 
+Set the objective to maximize the difference between the
+_wrong_ label and the _right_ label.
+
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
 m.setObjective(y[0, wrong_label] - y[0, right_label], gp.GRB.MAXIMIZE)
 ```
+
++++ {"slideshow": {"slide_type": "slide"}}
+
+Crete additional variables to model the $l1-$norm constraint.
+
+For each pixel in the image, we need to model the absolute difference between $x$
+and $\bar x$.
+
+Denote by $\eta$ the matrix variable measuring the absolute difference.
+
++++ {"slideshow": {"slide_type": "slide"}}
 
 The $l1-$norm constraint is formulated with:
 
@@ -179,45 +211,35 @@ $$ \eta \ge x - \bar x \\
 \eta \ge \bar x - x \\
 \sum \eta \le \delta $$
 
-With $\eta$ denoting the `absdiff` variables.
-
-Those constraints are naturally expressed with Gurobi's Matrix API.
-
-```{code-cell}
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
 # Bound on the distance to example in norm-1
-m.addConstr(abs_diff >= x - example)
-m.addConstr(abs_diff >= -x + example)
-m.addConstr(abs_diff.sum() <= delta)
-
-# Update the model
-m.update()
+eta = m.addMVar(example.shape, lb=0, ub=1, name="abs_diff")
+m.addConstr(eta >= x - example)
+m.addConstr(eta >= -x + example)
+m.addConstr(eta.sum() <= delta);
 ```
 
-Finally, we insert the neural network in the `gurobipy` model to link `x` and
++++ {"slideshow": {"slide_type": "slide"}}
+
+Finally, insert the neural network in the `gurobipy` model to link `x` and
 `y`.
 
-Note that this case is not as straightforward as others. The reason is that the
-neural network is trained for classification with a `"softmax"` activation in
+Note that the neural network is trained for classification with a `"softmax"` activation in
 the last layer. But in this model we are using the network without activation in
 the last layer.
 
 For this reason, we change manually the last layer activation before adding the
 network to the Gurobi model.
 
-Also, we use the function
-[add_mlp_regressor_constr](../api/MlpRegressorConstr.rst#gurobi_ml.sklearn.add_mlp_regressor_constr)
-directly. The network being actually for classification (i.e. of type
-`MLPClassifier`) the
-[add_predictor_constr](../api/AbstractPredictorConstr.rst#gurobi_ml.add_predictor_constr)
-function would not handle it automatically.
-
-Note that in the output, you should see a warning about adding constraints with
-very small coefficients that are ignored. Neural-networks often contain very
-small coefficients in their expressions. Any coefficient with an absolute value
-smaller than $10^{-13}$ is ignored by Gurobi. This may result in slightly
-different predicted values but should be negligible.
-
-```{code-cell}
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
 # Change last layer activation to identity
 nn.out_activation_ = "identity"
 # Code to add the neural network to the constraints
@@ -227,12 +249,20 @@ pred_constr = add_mlp_regressor_constr(m, nn, x, y)
 nn.out_activation_ = "softmax"
 ```
 
++++ {"slideshow": {"slide_type": "subslide"}}
+
 The model should be complete. We print the statistics of what was added to
 insert the neural network into the optimization model.
 
-```{code-cell}
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
 pred_constr.print_stats()
 ```
+
++++ {"slideshow": {"slide_type": "slide"}}
 
 ## Solving the model
 
@@ -255,11 +285,17 @@ solution. Instead, we need to either:
 
 We set the two parameters and optimize.
 
-```{code-cell}
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
 m.Params.BestBdStop = 0.0
 m.Params.BestObjStop = 0.0
 m.optimize()
 ```
+
++++ {"slideshow": {"slide_type": "slide"}}
 
 ## Results
 
@@ -267,14 +303,24 @@ Normally, for the example and $\delta$ we chose, a counter example that gets the
 wrong label is found. We finish this notebook by plotting the counter example
 and printing how it is classified by the neural network.
 
-```{code-cell}
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
 pixels = x.X.reshape((28, 28))
 plt.imshow(pixels, cmap="gray")
 plt.show()
+```
 
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: subslide
+---
 print(f"Solution is classified as {nn.predict(x.X)}")
 ```
 
-+++ {"nbsphinx": "hidden"}
++++ {"nbsphinx": "hidden", "slideshow": {"slide_type": "slide"}}
 
 Copyright © 2022 Gurobi Optimization, LLC
