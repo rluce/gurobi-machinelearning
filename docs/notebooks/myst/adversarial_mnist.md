@@ -32,26 +32,47 @@ can occur without notice.
 
 </div>
 
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: skip
+---
+from traitlets.config.manager import BaseJSONConfigManager
+from pathlib import Path
+path = Path.home()/".jupyter"/"nbconfig"
+cm = BaseJSONConfigManager(config_dir=str(path))
+cm.update(
+    "rise",
+    {
+        "transition": "linear",
+        "start_slideshow_at": "selected",
+        "scroll": True,
+        "enable_chalkboard": False,  # scrollable slides are only available without chalkboard
+        "header": "<div class=logo><img src=images/gurobi-light.svg alt=Gurobi></div>"
+    }
+)
+```
+
 +++ {"slideshow": {"slide_type": "slide"}}
 
-# Adversarial Machine Learning
+<div class="titlepage">
+
+# Adversarial Example with Gurobi Machine Learning
+
+</div>
+
++++ {"slideshow": {"slide_type": "subslide"}}
 
 In this example, we show how to use Gurobi Machine Learning to construct an
 adversarial example for a trained neural network.
 
-We use the MNIST handwritten digit database (http://yann.lecun.com/exdb/mnist/)
-for this example.
+We use the MNIST handwritten digit database (http://yann.lecun.com/exdb/mnist/).
 
 +++ {"slideshow": {"slide_type": "subslide"}}
 
-For this problem, we are given a trained neural network and one well classified
+We are given a (small) trained neural network and one well classified
 example $\bar x$. Our goal is to construct another example $x$ _close to_ $\bar
 x$ that is classified with another label.
-
-For the hand digit recognition problem, the input is a grayscale image of $28
-\times 28$ ($=784$) pixels and the output is a vector of length 10 (each entry
-corresponding to a digit). We denote the output vector by $y$. The image is
-classified according to the largest entry of $y$.
 
 ```{code-cell} ipython3
 ---
@@ -80,14 +101,19 @@ exampleno = 26
 example = X[exampleno : exampleno + 1, :]
 ```
 
++++ {"slideshow": {"slide_type": "subslide"}}
+
+For the hand digit recognition problem, the example is a grayscale image of $28
+\times 28$ ($=784$) pixels and the output is a vector of length 10 (each entry
+corresponding to a digit). We denote the output vector by $y$. The image is
+classified according to the largest entry of $y$.
+
 ```{code-cell} ipython3
 ---
 slideshow:
   slide_type: subslide
 ---
-pixels = example.reshape((28, 28))
-plt.imshow(pixels, cmap="gray")
-plt.show()
+plt.imshow(example.reshape((28, 28)), cmap="gray")
 ```
 
 ```{code-cell} ipython3
@@ -119,9 +145,9 @@ the one with the largest value giving the correct label. We pick a coordinate
 corresponding to another label, denoted $w$, and we want the difference between
 $y_w - y_l$ to be as large as possible.
 
-If we can find a solution where this difference is positive, then $x$ is a
-counter-example that will receive a different label. If instead we can show that
-the difference is non-positive, no such counter-example exists.
+If we find a $x$ where this difference is positive, then $x$ is a
+counter-example that receives a different label. If instead we show that
+the difference is negative, no such counter-example exists.
 
 ```{code-cell} ipython3
 ---
@@ -137,7 +163,7 @@ print(f"The wrong label we choose is {wrong_label}")
 +++ {"slideshow": {"slide_type": "subslide"}}
 
 We define the neighborhood using the $l1-$norm $|| x - \bar x
-||_1$. The size of the neighborhood is defined by a fixed parameter $\delta$. We
+||_1$, it is defined by a fixed parameter $\delta$:
 want
 
 $$ || x - \bar x ||_1 \le \delta. $$
@@ -164,8 +190,8 @@ Now build the model with gurobipy
 
 +++ {"slideshow": {"slide_type": "slide"}}
 
-Create a matrix variable `x` corresponding to the new input of the
-neural network we want to compute and a `y` variables for the output of the
+Create a matrix variable `x` corresponding to input of the
+neural network and a matrix variable `y` corresponding to the output of the
 neural network. Those variables should have respectively the shape of the
 example we picked and the shape of the return value of `predict_proba`.
 
@@ -275,15 +301,8 @@ solution. Instead, we need to either:
    - prove that there is no solution of positive cost (i.e. no counter-example
      in the neighborhood exists).
 
- We can use Gurobi parameters to limit the optimization to answer those
- questions: setting
- [BestObjStop](https://www.gurobi.com/documentation/current/refman/bestobjstop.html#parameter:BestObjStop)
- to 0.0 will stop the optimizer if a counter-example is found, setting
- [BestBdStop](https://www.gurobi.com/documentation/current/refman/bestobjstop.html#parameter:BestBdStop)
- to 0.0 will stop the optimization if the optimizer has shown there is no
- counter-example.
-
-We set the two parameters and optimize.
+ We use Gurobi parameters to limit the optimization to limit the optimization to answering those
+ questions.
 
 ```{code-cell} ipython3
 ---
@@ -306,11 +325,9 @@ and printing how it is classified by the neural network.
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
-pixels = x.X.reshape((28, 28))
-plt.imshow(pixels, cmap="gray")
-plt.show()
+plt.imshow(x.X.reshape((28, 28)), cmap="gray")
 ```
 
 ```{code-cell} ipython3
@@ -323,4 +340,14 @@ print(f"Solution is classified as {nn.predict(x.X)}")
 
 +++ {"nbsphinx": "hidden", "slideshow": {"slide_type": "slide"}}
 
-Copyright © 2022 Gurobi Optimization, LLC
+<div class="titlepage">
+
+# Thank you!
+
+<br>
+<br>
+<br>
+
+Find out more [Gurobi Machine Learning](https://gurobi-optimization-gurobi-machine-learning.readthedocs-hosted.com/en/stable/)
+
+</div>
