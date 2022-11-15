@@ -12,26 +12,6 @@ kernelspec:
   name: python3
 ---
 
-+++ {"nbsphinx": "hidden"}
-
-<div class="alert alert-warning">
-warning
-
-The ipynb version of this notebook should not be manually edited.
-If you want to make modification please modify the .md version
-
-</div>
-
-+++
-
-<div class="alert alert-warning">
-warning
-
-This code is in a pre-release state. It may not be fully functional and breaking changes
-can occur without notice.
-
-</div>
-
 # Student Enrollment
 
 In this example, we show how to reproduce the model of student enrollment from

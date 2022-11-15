@@ -3,7 +3,8 @@ Generic Predictor Function
 
 .. autofunction:: gurobi_ml.add_predictor_constr
 
-.. autoclass:: gurobi_ml.modeling.basepredictor.AbstractPredictorConstr
+
+.. autoclass:: gurobi_ml.modeling.base_predictor_constr.AbstractPredictorConstr
     :members:
 
     .. method:: remove()

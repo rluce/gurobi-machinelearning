@@ -32,6 +32,7 @@ extensions = [
     "sphinx.ext.duration",
     "sphinx.ext.autodoc",
     "sphinx.ext.extlinks",
+    "sphinx.ext.imgconverter",
     "sphinx_rtd_theme",
     "sphinx_copybutton",
     "sphinx.ext.mathjax",
@@ -43,10 +44,20 @@ extensions = [
     "sphinx_design",
 ]
 
-dep_versions = {
-    x.split("==")[0]: x.split("==")[1]
-    for x in (Path().resolve().parent.parent / "requirements.tox.txt").read_text().split()
-}
+
+def get_versions(file: Path, acc=None):
+    if acc is None:
+        acc = dict()
+    new_dict = {x.split("==")[0]: x.split("==")[1] for x in file.read_text().split()}
+    return {**new_dict, **acc}
+
+
+root_path = Path().resolve().parent.parent
+dep_versions = get_versions(root_path / "requirements.tox.txt")
+dep_versions = get_versions(root_path / "requirements.keras.txt", dep_versions)
+dep_versions = get_versions(root_path / "requirements.pytorch.txt", dep_versions)
+dep_versions = get_versions(root_path / "requirements.sklearn.txt", dep_versions)
+
 
 VARS_SHAPE = """See :py:func:`add_predictor_constr <gurobi_ml.add_predictor_constr>` for acceptable values for input_vars and output_vars"""
 
@@ -103,10 +114,5 @@ extlinks_detect_hardcoded_links = True
 extlinks = {
     "issue": ("https://github.com/Gurobi/gurobi-machinelearning/issues/%s", "issue %s"),
     "gurobipy": ("https://www.gurobi.com/documentation/current/refman/py_%s.html", "gurobipy %s"),
+    "pypi": ("https://pypi.org/project/%s/", "%s"),
 }
-
-rst_prolog = """.. warning::
-
-   This code is in a pre-release state. It may not be fully functional and breaking changes
-   can occur without notice.
-"""

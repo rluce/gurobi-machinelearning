@@ -19,8 +19,9 @@ into a :gurobipy:`model`.
 
 
 from ..exceptions import NoModel
-from ..modeling.basepredictor import AbstractPredictorConstr
-from ..register_predictor import user_predictors
+from ..modeling.base_predictor_constr import AbstractPredictorConstr
+from ..modeling.get_convertor import get_convertor
+from ..register_user_predictor import user_predictors
 from .predictors_list import sklearn_predictors, sklearn_transformers
 from .skgetter import SKgetter
 
@@ -67,37 +68,32 @@ class PipelineConstr(SKgetter, AbstractPredictorConstr):
 
     def __init__(self, gp_model, pipeline, input_vars, output_vars=None, **kwargs):
         self._steps = []
-        self._kwargs = kwargs
+        self._default_name = "pipe"
         SKgetter.__init__(self, pipeline, **kwargs)
         AbstractPredictorConstr.__init__(self, gp_model, input_vars, output_vars, **kwargs)
 
-    def _mip_model(self):
+    def _mip_model(self, **kwargs):
         pipeline = self.predictor
         gp_model = self._gp_model
         input_vars = self._input
         output_vars = self._output
         steps = self._steps
-        transformers = {}
-        for key, item in sklearn_transformers().items():
-            transformers[key.lower()] = item
-        for name, obj in pipeline.steps[:-1]:
-            try:
-                steps.append(transformers[name](gp_model, obj, input_vars, **self._kwargs))
-            except KeyError:
-                raise NoModel(pipeline, f"I don't know how to deal with that object: {name}")
+        transformers = sklearn_transformers()
+        for transformer in pipeline[:-1]:
+            convertor = get_convertor(transformer, transformers)
+            if convertor is None:
+                raise NoModel(
+                    self.predictor, f"I don't know how to deal with that object: {transformer}"
+                )
+            steps.append(convertor(gp_model, transformer, input_vars, **kwargs))
             input_vars = steps[-1].output
-        name, obj = pipeline.steps[-1]
-        predictors = {}
-        for key, item in sklearn_predictors().items():
-            predictors[key.lower()] = item
-        for key, item in user_predictors().items():
-            if not isinstance(key, str):
-                key = key.__name__
-            predictors[key.lower()] = item
-        try:
-            steps.append(predictors[name](gp_model, obj, input_vars, output_vars, **self._kwargs))
-        except KeyError:
-            raise NoModel(pipeline, f"I don't know how to deal with that object: {name}")
+
+        predictor = pipeline[-1]
+        predictors = sklearn_predictors() | user_predictors()
+        convertor = get_convertor(predictor, predictors)
+        if convertor is None:
+            raise NoModel(self.predictor, f"I don't know how to deal with that object: {predictor}")
+        steps.append(convertor(gp_model, predictor, input_vars, output_vars, **kwargs))
         if self._output is None:
             self._output = steps[-1].output
 
@@ -107,9 +103,7 @@ class PipelineConstr(SKgetter, AbstractPredictorConstr):
         This function prints detailed statistics on the variables
         and constraints that where added to the model.
 
-        Usually derived classes reimplement this function to provide more
-        details about the structure of the additions (type of ML model,
-        layers if it's a neural network,...)
+        The pipeline version includes a summary of the steps that it contains.
 
         Arguments
         ---------
@@ -120,13 +114,17 @@ class PipelineConstr(SKgetter, AbstractPredictorConstr):
         super().print_stats(file=file)
         print(file=file)
         print(f"Pipeline has {len(self._steps)} steps:", file=file)
-        for step in self:
-            print(step, end=" ", file=file)
         print(file=file)
-        print(file=file)
+
+        header = f"{'Step':13} {'Output Shape':>14} {'Variables':>12} {'Constraints':^38}"
+        print("-" * len(header), file=file)
+        print(header, file=file)
+        print(f"{' '*41} {'Linear':>12} {'Quadratic':>12} {'General':>12}", file=file)
+        print("=" * len(header), file=file)
         for step in self:
-            step.print_stats(file)
+            step.print_stats(abbrev=True, file=file)
             print(file=file)
+        print("-" * len(header), file=file)
 
     def __getitem__(self, key):
         """Get an item from the pipeline steps"""

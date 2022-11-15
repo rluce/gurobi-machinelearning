@@ -71,7 +71,6 @@ class SequentialConstr(BaseNNConstr):
     input and output as matrices of variables."""
 
     def __init__(self, gp_model, predictor, input_vars, output_vars=None, **kwargs):
-        linear = None
         for step in predictor:
             if isinstance(step, nn.ReLU):
                 pass
@@ -79,25 +78,20 @@ class SequentialConstr(BaseNNConstr):
                 pass
             else:
                 raise NoModel(predictor, f"Unsupported layer {type(step).__name__}")
-        super().__init__(
-            gp_model, predictor, input_vars, output_vars, default_name="torchsequential"
-        )
+        super().__init__(gp_model, predictor, input_vars, output_vars)
 
-    def _mip_model(self):
+    def _mip_model(self, **kwargs):
         network = self.predictor
         _input = self._input
         output = None
-        numlayers = len(network)
+        num_layers = len(network)
 
         for i, step in enumerate(network):
-            if i == numlayers - 1:
+            if i == num_layers - 1:
                 output = self._output
             if isinstance(step, nn.ReLU):
                 layer = self.add_activation_layer(
-                    _input,
-                    self.act_dict["relu"],
-                    output,
-                    name=f"{i}",
+                    _input, self.act_dict["relu"], output, name="relu"
                 )
                 _input = layer.output
             elif isinstance(step, nn.Linear):
@@ -112,27 +106,13 @@ class SequentialConstr(BaseNNConstr):
                     layer_bias,
                     self.act_dict["identity"],
                     output,
-                    name=f"{i}",
+                    name="linear",
                 )
                 _input = layer.output
         if self._output is None:
             self._output = layer.output
 
     def get_error(self):
-        """Returns error in Gurobi's solution with respect to prediction from input
-
-        Returns
-        -------
-        error: ndarray of same shape as :py:attr:`gurobi_ml.modeling.basepredictor.AbstractPredictorConstr.output`
-            Assuming that we have a solution for the input and output variables
-            `x, y`. Returns the absolute value of the differences between `predictor.predict(x)` and
-            `y`. Where predictor is the Pytorch model this object is modeling.
-
-        Raises
-        ------
-        NoSolution
-            If the Gurobi model has no solution (either was not optimized or is infeasible).
-        """
         if self._has_solution():
             t_in = torch.from_numpy(self.input.X).float()
             t_out = self.predictor.forward(t_in)

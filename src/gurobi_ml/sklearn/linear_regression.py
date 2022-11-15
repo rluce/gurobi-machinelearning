@@ -62,6 +62,7 @@ class LinearRegressionConstr(BaseSKlearnRegressionConstr):
     Stores the changes to :gurobipy:`model` when embedding an instance into it."""
 
     def __init__(self, gp_model, predictor, input_vars, output_vars=None, **kwargs):
+        self._default_name = ("lin_reg",)
         BaseSKlearnRegressionConstr.__init__(
             self,
             gp_model,
@@ -71,6 +72,6 @@ class LinearRegressionConstr(BaseSKlearnRegressionConstr):
             **kwargs,
         )
 
-    def _mip_model(self):
+    def _mip_model(self, **kwargs):
         """Add the prediction constraints to Gurobi"""
         self.add_regression_constr()

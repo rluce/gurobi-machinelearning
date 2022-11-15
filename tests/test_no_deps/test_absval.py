@@ -1,10 +1,10 @@
 import unittest
-import warnings
 
 import gurobipy as gp
 import numpy as np
 
 from gurobi_ml import add_predictor_constr, register_predictor_constr
+from gurobi_ml.exceptions import NoSolution
 from gurobi_ml.modeling.neuralnet import BaseNNConstr
 
 
@@ -32,7 +32,7 @@ class MyNNConstr(BaseNNConstr):
             **kwargs,
         )
 
-    def _mip_model(self):
+    def _mip_model(self, **kwargs):
         """Add the prediction constraints to Gurobi"""
         neural_net = self.predictor
         n_layers = neural_net["n_layers"]
@@ -65,6 +65,11 @@ class MyNNConstr(BaseNNConstr):
             self._gp_model.update()
         assert self._output is not None
 
+    def get_error(self):
+        if self._has_solution():
+            return np.abs(self.input.X) - self.output.X
+        raise NoSolution()
+
 
 def abs_model(X, y, nn, inf_bound, registered):
     bound = 100
@@ -84,7 +89,6 @@ def abs_model(X, y, nn, inf_bound, registered):
         if nn:
             if registered:
                 add_predictor_constr(model, nn, diff, abs_diff)
-                pass
             else:
                 MyNNConstr(model, nn, diff, abs_diff)
         else:

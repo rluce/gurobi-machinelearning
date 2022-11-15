@@ -13,6 +13,8 @@
 # limitations under the License.
 # ==============================================================================
 
+from abc import ABC, abstractmethod
+
 import gurobipy as gp
 
 from ..exceptions import ParameterError
@@ -63,7 +65,7 @@ def validate_gp_vars(gp_vars, is_input):
     raise ParameterError("Could not validate variables")
 
 
-class AbstractPredictorConstr(SubModel):
+class AbstractPredictorConstr(ABC, SubModel):
     """Base class to store sub-model added by :py:func:`gurobi_ml.add_predictor_constr`
 
     This class is the base class to store everything that is added to
@@ -116,11 +118,11 @@ class AbstractPredictorConstr(SubModel):
             self._validate()
         else:
             self._input = validate_gp_vars(self._input, True)
-        self._mip_model()
+        self._mip_model(**kwargs)
         assert self._output is not None
         return self
 
-    def print_stats(self, file=None):
+    def print_stats(self, abbrev=False, file=None):
         """Print statistics on model additions stored by this class
 
         This function prints detailed statistics on the variables
@@ -136,12 +138,17 @@ class AbstractPredictorConstr(SubModel):
         file: None, optional
             Text stream to which output should be redirected. By default sys.stdout.
         """
-        super().print_stats(file)
-        print(f"Input has shape {self.input.shape}", file=file)
-        print(f"Output has shape {self.output.shape}", file=file)
 
-    def _mip_model(self):
-        """Defined in derived class the mip_model for the predictor"""
+        if abbrev:
+            print(
+                f"{self._name:13} {self.output.shape.__str__():>14} {len(self.vars):>12} "
+                + f"{len(self.constrs):>12} {len(self.qconstrs):>12} {len(self.genconstrs):>12}",
+                file=file,
+            )
+        else:
+            super().print_stats(file)
+            print(f"Input has shape {self.input.shape}", file=file)
+            print(f"Output has shape {self.output.shape}", file=file)
 
     def _create_output_vars(self, input_vars, name="output"):
         """May be defined in derived class to create the output variables of predictor"""
@@ -158,32 +165,34 @@ class AbstractPredictorConstr(SubModel):
     def _has_solution(self):
         """Returns true if we have a solution"""
         try:
-            v = self._input.X
-            v = self._output.X
+            self._input.X
+            self._output.X
             return True
         except gp.GurobiError:
             pass
         return False
 
+    @abstractmethod
     def get_error(self):
         """Returns error in Gurobi's solution with respect to prediction from input
 
-        Note that this function is implemented in child classes.
-
         Returns
         -------
-        error: ndarray of same shape as :py:attr:`output`
+        error: ndarray of same shape as :py:attr:`gurobi_ml.modeling.base_predictor_constr.AbstractPredictorConstr.output`
             Assuming that we have a solution for the input and output variables
-            `x, y`. Returns the absolute value of the differences between `predict(x)` and
-            `y`, where `predict` is the prediction function for the object we are modeling
-            (`predict` for Scikit-Learn and Keras, `forward` for Pytorch).
-
+            `x, y`. Returns the absolute value of the differences between `predictor.predict(x)` and
+            `y`. Where predictor is the Pytorch model this object is modeling.
         Raises
         ------
         NoSolution
             If the Gurobi model has no solution (either was not optimized or is infeasible).
         """
-        assert False, "Not implemented"
+        ...
+
+    @abstractmethod
+    def _mip_model(self, **kwargs):
+        """Makes MIP model for the predictor the sub-class implements"""
+        ...
 
     @staticmethod
     def _indexed_name(index, name):

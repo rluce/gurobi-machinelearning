@@ -7,30 +7,10 @@ jupytext:
     format_version: 0.13
     jupytext_version: 1.14.1
 kernelspec:
-  display_name: Python 3.9.12 64-bit
+  display_name: Python 3 (ipykernel)
   language: python
   name: python3
 ---
-
-+++ {"nbsphinx": "hidden"}
-
-<div class="alert alert-warning">
-warning
-
-The ipynb version of this notebook should not be manually edited.
-If you want to make modification please modify the .md version
-
-</div>
-
-+++
-
-<div class="alert alert-warning">
-warning
-
-This code is in a pre-release state. It may not be fully functional and breaking changes
-can occur without notice.
-
-</div>
 
 # Surrogate Models
 
@@ -131,8 +111,6 @@ fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 surf = ax.plot_surface(x1, x2, y, cmap=cm.coolwarm, linewidth=0.01, antialiased=False)
 # Add a color bar which maps values to colors.
 fig.colorbar(surf, shrink=0.5, aspect=5)
-
-plt.show()
 ```
 
 ## Approximate the function
@@ -183,8 +161,6 @@ surf = ax.plot_surface(
 )
 # Add a color bar which maps values to colors.
 fig.colorbar(surf, shrink=0.5, aspect=5)
-
-plt.show()
 ```
 
 Visually, the approximation looks close enough to the original function.

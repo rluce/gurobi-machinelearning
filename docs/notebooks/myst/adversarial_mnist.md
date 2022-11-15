@@ -12,26 +12,6 @@ kernelspec:
   name: python3
 ---
 
-+++ {"nbsphinx": "hidden", "slideshow": {"slide_type": "skip"}}
-
-<div class="alert alert-warning">
-warning
-
-The ipynb version of this notebook should not be manually edited.
-If you want to make modification please modify the .md version
-
-</div>
-
-+++ {"slideshow": {"slide_type": "skip"}}
-
-<div class="alert alert-warning">
-warning
-
-This code is in a pre-release state. It may not be fully functional and breaking changes
-can occur without notice.
-
-</div>
-
 ```{code-cell} ipython3
 ---
 slideshow:
@@ -53,26 +33,20 @@ cm.update(
 )
 ```
 
-+++ {"slideshow": {"slide_type": "slide"}}
-
-<div class="titlepage">
-
-# Adversarial Example with Gurobi Machine Learning
-
-</div>
-
 +++ {"slideshow": {"slide_type": "subslide"}}
+
+# Adversarial Machine Learning with Gurobi
 
 In this example, we show how to use Gurobi Machine Learning to construct an
 adversarial example for a trained neural network.
 
 We use the MNIST handwritten digit database (http://yann.lecun.com/exdb/mnist/).
 
-+++ {"slideshow": {"slide_type": "subslide"}}
++++ {"slideshow": {"slide_type": "slide"}}
 
 We are given a (small) trained neural network and one well classified
 example $\bar x$. Our goal is to construct another example $x$ _close to_ $\bar
-x$ that is classified with another label.
+x$ that is classified with a different label.
 
 ```{code-cell} ipython3
 ---
@@ -90,7 +64,7 @@ from gurobi_ml.sklearn import add_mlp_regressor_constr
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
 # Load the trained network and the examples
 mnist_data = load("../../../tests/predictors/mnist__mlpclassifier.joblib")
@@ -111,16 +85,9 @@ classified according to the largest entry of $y$.
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
 plt.imshow(example.reshape((28, 28)), cmap="gray")
-```
-
-```{code-cell} ipython3
----
-slideshow:
-  slide_type: subslide
----
 print(f"Predicted label {nn.predict(example)}")
 ```
 
@@ -132,18 +99,19 @@ network.
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
 ex_prob = nn.predict_proba(example)
-ex_prob
+
+print(f"Label weights for training example:\n {ex_prob}")
 ```
 
 +++ {"slideshow": {"slide_type": "subslide"}}
 
 For this training example, coordinate $l=4$ of the output vector is
 the one with the largest value giving the correct label. We pick a coordinate
-corresponding to another label, denoted $w$, and we want the difference between
-$y_w - y_l$ to be as large as possible.
+corresponding to another label $w=9$, and we want the difference between
+$y_9 - y_4$ to be as large as possible.
 
 If we find a $x$ where this difference is positive, then $x$ is a
 counter-example that receives a different label. If instead we show that
@@ -152,23 +120,18 @@ the difference is negative, no such counter-example exists.
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
-sorted_labels = np.argsort(ex_prob)[0]
-right_label = sorted_labels[-1]
-wrong_label = sorted_labels[-2]
-print(f"The wrong label we choose is {wrong_label}")
+right_label = 4
+wrong_label = 9
 ```
 
 +++ {"slideshow": {"slide_type": "subslide"}}
 
 We define the neighborhood using the $l1-$norm $|| x - \bar x
-||_1$, it is defined by a fixed parameter $\delta$:
-want
+||_1$, it is defined by a fixed parameter $\delta$.
 
-$$ || x - \bar x ||_1 \le \delta. $$
-
-+++ {"slideshow": {"slide_type": "subslide"}}
++++ {"slideshow": {"slide_type": "fragment"}}
 
 If we denote by $g$ the prediction function of the neural network. Our full
 optimization model reads:
@@ -179,7 +142,7 @@ $$ \begin{aligned} &\max y_w - y_l \\
 & y = g(x). \end{aligned} $$
 
 
-Our model is inspired by <cite data-cite="fischetti_jo_2018">Fischet al.
+Note that our model is inspired by <cite data-cite="fischetti_jo_2018">Fischet al.
 (2018)</cite>.
 
 +++ {"slideshow": {"slide_type": "slide"}}
@@ -192,13 +155,12 @@ Now build the model with gurobipy
 
 Create a matrix variable `x` corresponding to input of the
 neural network and a matrix variable `y` corresponding to the output of the
-neural network. Those variables should have respectively the shape of the
 example we picked and the shape of the return value of `predict_proba`.
 
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
 m = gp.Model()
 delta = 5
@@ -207,7 +169,7 @@ x = m.addMVar(example.shape, lb=0.0, ub=1.0, name="x")
 y = m.addMVar(ex_prob.shape, lb=-gp.GRB.INFINITY, name="y")
 ```
 
-+++ {"slideshow": {"slide_type": "slide"}}
++++ {"slideshow": {"slide_type": "subslide"}}
 
 Set the objective to maximize the difference between the
 _wrong_ label and the _right_ label.
@@ -215,7 +177,7 @@ _wrong_ label and the _right_ label.
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
 m.setObjective(y[0, wrong_label] - y[0, right_label], gp.GRB.MAXIMIZE)
 ```
@@ -229,7 +191,7 @@ and $\bar x$.
 
 Denote by $\eta$ the matrix variable measuring the absolute difference.
 
-+++ {"slideshow": {"slide_type": "slide"}}
++++ {"slideshow": {"slide_type": "subslide"}}
 
 The $l1-$norm constraint is formulated with:
 
@@ -240,7 +202,7 @@ $$ \eta \ge x - \bar x \\
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
 # Bound on the distance to example in norm-1
 eta = m.addMVar(example.shape, lb=0, ub=1, name="abs_diff")
@@ -264,7 +226,7 @@ network to the Gurobi model.
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
 # Change last layer activation to identity
 nn.out_activation_ = "identity"
@@ -283,7 +245,7 @@ insert the neural network into the optimization model.
 ```{code-cell} ipython3
 ---
 slideshow:
-  slide_type: subslide
+  slide_type: fragment
 ---
 pred_constr.print_stats()
 ```
@@ -328,13 +290,6 @@ slideshow:
   slide_type: fragment
 ---
 plt.imshow(x.X.reshape((28, 28)), cmap="gray")
-```
-
-```{code-cell} ipython3
----
-slideshow:
-  slide_type: subslide
----
 print(f"Solution is classified as {nn.predict(x.X)}")
 ```
 

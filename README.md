@@ -1,14 +1,13 @@
-[![build and test](https://github.com/Gurobi/gurobi-machinelearning/actions/workflows/push.yml/badge.svg)](https://github.com/Gurobi/gurobi-machinelearning/actions/workflows/push.yml)
-[![build wheel](https://github.com/Gurobi/gurobi-machinelearning/actions/workflows/build_wheel.yml/badge.svg)](https://github.com/Gurobi/gurobi-machinelearning/actions/workflows/build_wheel.yml)
+[![build and test](https://github.com/Gurobi/gurobi-machinelearning/actions/workflows/push.yml/badge.svg?branch=main)](https://github.com/Gurobi/gurobi-machinelearning/actions/workflows/push.yml?query=branch%3Amain++)
+[![build wheel](https://github.com/Gurobi/gurobi-machinelearning/actions/workflows/build_wheel.yml/badge.svg?branch=main)](https://github.com/Gurobi/gurobi-machinelearning/actions/workflows/build_wheel.yml?query=branch%3Amain++)
 ![Python versions](https://img.shields.io/badge/python-3.9%20|%203.10-blue)
 [![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![PyPI](https://img.shields.io/pypi/v/gurobipy)](https://pypi.org/project/gurobipy)
+[![PyPI](https://img.shields.io/pypi/v/gurobi-machinelearning)](https://pypi.org/project/gurobi-machinelearning)
+[![ReadTheDocs](https://readthedocs.com/projects/gurobi-optimization-gurobi-machine-learning/badge/?version=stable)](https://gurobi-optimization-gurobi-machine-learning.readthedocs-hosted.com)
+[![Gurobi-forum](https://img.shields.io/badge/Help-Gurobi--Forum-red)](https://support.gurobi.com/hc/en-us/community/topics)
 
-![Gurobi](docs/source/_static/image8.png)
+[![Gurobi](https://raw.githubusercontent.com/Gurobi/gurobi-machinelearning/banner/docs/source/_static/image8.png)](https://www.gurobi.com)
 
-
-> **⚠ Warning**
-> ```This code is in a pre-release state. It may not be fully functional and breaking changes can occur without notice.```
 
 # Gurobi Machine Learning
 
@@ -18,11 +17,11 @@ The package currently supports various [scikit-learn](https://scikit-learn.org/s
 
 # Documentation
 
-The latest user manual is available on [readthedocs](https://gurobi-machinelearning.readthedocs.io/en/stable/).
+The latest user manual is available on [readthedocs](https://gurobi-optimization-gurobi-machine-learning.readthedocs-hosted.com/).
 
 # Contact us
 
-For questions related to using Gurobi Machine Learning please use [Gurobi's Forum](https://support.gurobi.com/hc/en-us/community/topics).
+For questions related to using Gurobi Machine Learning please use [Gurobi's Forum](https://support.gurobi.com/hc/en-us/community/topics/10373864542609-GitHub-Projects).
 
 For reporting bugs, issues and feature request please
 [open an issue](https://github.com/Gurobi/gurobi-machinelearning/issues).

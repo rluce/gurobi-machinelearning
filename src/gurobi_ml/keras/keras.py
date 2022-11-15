@@ -89,7 +89,7 @@ class KerasNetworkConstr(BaseNNConstr):
 
         super().__init__(gp_model, predictor, input_vars, output_vars, **kwargs)
 
-    def _mip_model(self):
+    def _mip_model(self, **kwargs):
         network = self.predictor
         _input = self._input
         output = None
@@ -102,10 +102,7 @@ class KerasNetworkConstr(BaseNNConstr):
                 pass
             elif isinstance(step, keras.layers.ReLU):
                 layer = self.add_activation_layer(
-                    _input,
-                    self.act_dict["relu"],
-                    output,
-                    name=f"{i}",
+                    _input, self.act_dict["relu"], output, name="relu"
                 )
                 _input = layer.output
             else:
@@ -115,32 +112,13 @@ class KerasNetworkConstr(BaseNNConstr):
                     activation = "identity"
                 weights, bias = step.get_weights()
                 layer = self.add_dense_layer(
-                    _input,
-                    weights,
-                    bias,
-                    self.act_dict[activation],
-                    output,
-                    name=f"{i}",
+                    _input, weights, bias, self.act_dict[activation], output, name="dense"
                 )
                 _input = layer.output
         if self._output is None:
             self._output = layer.output
 
     def get_error(self):
-        """Returns error in Gurobi's solution with respect to prediction from input
-
-        Returns
-        -------
-        error: ndarray of same shape as :py:attr:`gurobi_ml.modeling.basepredictor.AbstractPredictorConstr.output`
-            Assuming that we have a solution for the input and output variables
-            `x, y`. Returns the absolute value of the differences between `predictor.forward(x)` and
-            `y`. Where predictor is the Keras model this object is modeling.
-
-        Raises
-        ------
-        NoSolution
-            If the gurobipy model has no solution (either was not optimized or is infeasible).
-        """
         if self._has_solution():
             return np.abs(self.predictor.predict(self.input.X) - self.output.X)
         raise NoSolution()
