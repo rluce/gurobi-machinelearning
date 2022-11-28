@@ -77,9 +77,13 @@ example = X[exampleno : exampleno + 1, :]
 
 +++ {"slideshow": {"slide_type": "subslide"}}
 
-For the hand digit recognition problem, the example is a grayscale image of $28
-\times 28$ ($=784$) pixels and the output is a vector of length 10 (each entry
-corresponding to a digit). We denote the output vector by $y$. The image is
+The example is a grayscale image of $28
+\times 28$ ($=784$) pixels.
+
+The output is a vector of length 10 (each entry
+corresponding to a digit).
+
+We denote the output vector by $y$. The image is
 classified according to the largest entry of $y$.
 
 ```{code-cell} ipython3
@@ -89,6 +93,18 @@ slideshow:
 ---
 plt.imshow(example.reshape((28, 28)), cmap="gray")
 print(f"Predicted label {nn.predict(example)}")
+```
+
++++ {"slideshow": {"slide_type": "slide"}}
+
+The neural network has two hidden layers of 50 neurons each
+
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: fragment
+---
+nn
 ```
 
 +++ {"slideshow": {"slide_type": "subslide"}}
@@ -306,3 +322,15 @@ print(f"Solution is classified as {nn.predict(x.X)}")
 Find out more [Gurobi Machine Learning](https://gurobi-optimization-gurobi-machine-learning.readthedocs-hosted.com/en/stable/)
 
 </div>
+
+```{code-cell} ipython3
+---
+slideshow:
+  slide_type: skip
+---
+m.write('ReLU.lp')
+```
+
+```{code-cell} ipython3
+
+```
