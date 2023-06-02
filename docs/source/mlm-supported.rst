@@ -1,11 +1,12 @@
 Supported Regression models
-===========================
+###########################
 
 The package currently support various `scikit-learn
 <https://scikit-learn.org/stable/>`_ objects. It also has limited support for
 `Keras <https://keras.io/>`_ and `PyTorch <https://pytorch.org/>`_. Only
 sequential neural networks with ReLU activation function are currently
-supported.
+supported. In :ref:`Mixed Integer Formulations`, we briefly outline the formulations used for the various
+regression models.
 
 The versions of those packages tested with the current version (|version|) are
 listed in the table :ref:`table-versions`.
@@ -29,7 +30,11 @@ to insert it in a Gurobi model.
        <sklearn.linear_model.LinearRegression>`
      - :py:mod:`add_linear_regression_constr
        <gurobi_ml.sklearn.linear_regression>`
-   * - Logistic regression [#]_
+   * - Partial Least Square
+     - :external:py:class:`PLSRegression
+       <sklearn.cross_decomposition.PLSRegression>`
+     - :py:mod:`add_pls_regression <gurobi_ml.sklearn.pls_regression>`
+   * - Logistic Regression [#]_
      - :external:py:class:`LogisticRegression
        <sklearn.linear_model.LogisticRegression>`
      - :py:mod:`add_logistic_regression_constr
@@ -76,6 +81,11 @@ to insert it in a Gurobi model.
        <sklearn.preprocessing.PolynomialFeatures>`
      - :py:mod:`add_polynomial_features_constr
        <gurobi_ml.sklearn.add_polynomial_features_constr>`
+   * - ColumnTransformer
+     - :external:py:class:`ColumnTransformer
+       <sklearn.compose.ColumnTransformer>`
+     - :py:mod:`add_column_transformer_constr
+       <gurobi_ml.sklearn.add_column_transformer_constr>`
 
 Keras
 -----
@@ -112,7 +122,7 @@ Currently, only two types of layers are supported:
 
 .. rubric:: Footnotes
 
-.. [#] Only binary classification
+.. [#] Only binary classification. The logsitic function is approximated by a piecewise linear function.
 .. [#] Only networks with `"relu"` activation for hidden layers and `'identity'`
     for the output layer.
 .. [#] Only polynomial features of degree 2.

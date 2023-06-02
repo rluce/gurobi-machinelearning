@@ -8,11 +8,14 @@
 
 
 Gurobi Machine Learning
-=======================
+#######################
 
 |
 |
 
+.. raw:: latex
+
+        \section*{Gurobi Machine Learning}
 
 A Python package to help use *trained* regression models in
 mathematical optimization models. The package supports a variety of regression models
@@ -42,6 +45,7 @@ different machine learning frameworks (scikit-learn, Keras and PyTorch).
    :caption: Machine Learning Models
 
    mlm-supported
+   mlm-mip-models
    mlm-examples
    mlm-further-reading
 

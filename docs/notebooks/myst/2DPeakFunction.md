@@ -5,7 +5,7 @@ jupytext:
     extension: .md
     format_name: myst
     format_version: 0.13
-    jupytext_version: 1.14.1
+    jupytext_version: 1.14.4
 kernelspec:
   display_name: Python 3 (ipykernel)
   language: python
@@ -81,6 +81,7 @@ from sklearn import metrics
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.pipeline import make_pipeline
+
 from gurobi_ml import add_predictor_constr
 ```
 
@@ -231,4 +232,4 @@ approximation.
 
 +++ {"nbsphinx": "hidden"}
 
-Copyright © 2022 Gurobi Optimization, LLC
+Copyright © 2023 Gurobi Optimization, LLC

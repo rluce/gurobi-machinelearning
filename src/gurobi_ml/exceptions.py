@@ -1,4 +1,4 @@
-# Copyright © 2022 Gurobi Optimization, LLC
+# Copyright © 2023 Gurobi Optimization, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,18 +13,20 @@
 # limitations under the License.
 # ==============================================================================
 
-""" Exceptions for gurobi_ml """
+"""Exceptions for gurobi_ml."""
 
 
 class NotRegistered(Exception):
-    """Predictor is not supported by gurobi_ml"""
+    """Predictor is not supported by gurobi_ml."""
 
     def __init__(self, predictor):
-        super().__init__(f"Object of type {predictor} is not registered/supported with gurobi_ml")
+        super().__init__(
+            f"Object of type {predictor} is not registered/supported with gurobi_ml"
+        )
 
 
 class NoModel(Exception):
-    """No model is known for some structure"""
+    """No model is known for some structure."""
 
     def __init__(self, predictor, reason):
         if not isinstance(predictor, str):
@@ -33,14 +35,14 @@ class NoModel(Exception):
 
 
 class NoSolution(Exception):
-    """Gurobi doesn't have a solution"""
+    """Gurobi doesn't have a solution."""
 
     def __init__(self):
         super().__init__("No solution available")
 
 
 class ParameterError(Exception):
-    """Wrong parameter to a function"""
+    """Wrong parameter to a function."""
 
     def __init__(self, message):
         super().__init__(message)

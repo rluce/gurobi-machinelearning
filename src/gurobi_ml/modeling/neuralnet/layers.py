@@ -1,4 +1,4 @@
-# Copyright © 2022 Gurobi Optimization, LLC
+# Copyright © 2023 Gurobi Optimization, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,15 +13,20 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Bases classes for modeling neural network layers"""
+"""Bases classes for modeling neural network layers."""
+
+import io
 
 import gurobipy as gp
 
-from ..base_predictor_constr import AbstractPredictorConstr, _default_name
+from gurobi_ml.modeling.neuralnet.activations import Identity
+
+from .._var_utils import _default_name
+from ..base_predictor_constr import AbstractPredictorConstr
 
 
 class AbstractNNLayer(AbstractPredictorConstr):
-    """Abstract class for NN layers"""
+    """Abstract class for NN layers."""
 
     def __init__(
         self,
@@ -32,30 +37,27 @@ class AbstractNNLayer(AbstractPredictorConstr):
         **kwargs,
     ):
         self.activation = activation_function
-        AbstractPredictorConstr.__init__(self, gp_model, input_vars, output_vars, **kwargs)
+        AbstractPredictorConstr.__init__(
+            self, gp_model, input_vars, output_vars, **kwargs
+        )
 
     def get_error(self):
         assert False
 
-    def print_stats(self, file=None):
-        """Print statistics about submodel created
+    def print_stats(self, abbrev=False, file=None):
+        """Print statistics about submodel created.
 
         Parameters
-        ---------
+        ----------
 
-        file: None, optional
+        file : None, optional
           Text stream to which output should be redirected. By default sys.stdout.
         """
-        print(
-            f"{self._name:12} {_default_name(self.activation):12} "
-            + f"{self.output.shape.__str__():>12} {len(self.vars):>10} "
-            + f"{len(self.constrs):>10} {len(self.qconstrs):>10} {len(self.genconstrs):>10}",
-            file=file,
-        )
+        return AbstractPredictorConstr.print_stats(self, True, file)
 
 
 class ActivationLayer(AbstractNNLayer):
-    """Class to build one activation layer of a neural network"""
+    """Class to build one activation layer of a neural network."""
 
     def __init__(
         self,
@@ -78,10 +80,10 @@ class ActivationLayer(AbstractNNLayer):
     def _create_output_vars(self, input_vars):
         rval = self._gp_model.addMVar(input_vars.shape, lb=-gp.GRB.INFINITY, name="act")
         self._gp_model.update()
-        self._output = rval
+        return rval
 
     def _mip_model(self, **kwargs):
-        """Add the layer to model"""
+        """Add the layer to model."""
         model = self.gp_model
         model.update()
         if "activation" in kwargs:
@@ -95,7 +97,7 @@ class ActivationLayer(AbstractNNLayer):
 
 
 class DenseLayer(AbstractNNLayer):
-    """Class to build one layer of a neural network"""
+    """Class to build one layer of a neural network."""
 
     def __init__(
         self,
@@ -124,10 +126,10 @@ class DenseLayer(AbstractNNLayer):
             (input_vars.shape[0], self.coefs.shape[1]), lb=-gp.GRB.INFINITY, name="act"
         )
         self._gp_model.update()
-        self._output = rval
+        return rval
 
     def _mip_model(self, **kwargs):
-        """Add the layer to model"""
+        """Add the layer to model."""
         model = self.gp_model
         model.update()
         if "activation" in kwargs:
@@ -138,3 +140,22 @@ class DenseLayer(AbstractNNLayer):
         # Do the mip model for the activation in the layer
         activation.mip_model(self)
         self._gp_model.update()
+
+    def print_stats(self, abbrev=False, file=None):
+        """Print statistics about submodel created.
+
+        Parameters
+        ----------
+
+        file : None, optional
+          Text stream to which output should be redirected. By default sys.stdout.
+        """
+        if not isinstance(self.activation, Identity):
+            output = io.StringIO()
+            AbstractPredictorConstr.print_stats(self, abbrev=True, file=output)
+            activation_name = f"({_default_name(self.activation)})"
+
+            out_string = output.getvalue()
+            print(f"{out_string[:-1]} {activation_name}", file=file)
+            return
+        AbstractPredictorConstr.print_stats(self, abbrev=True, file=file)

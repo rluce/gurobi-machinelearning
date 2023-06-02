@@ -1,4 +1,4 @@
-# Copyright © 2022 Gurobi Optimization, LLC
+# Copyright © 2023 Gurobi Optimization, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,15 +18,8 @@ from .gradient_boosting_regressor import add_gradient_boosting_regressor_constr
 from .linear_regression import add_linear_regression_constr
 from .logistic_regression import add_logistic_regression_constr
 from .mlpregressor import add_mlp_regressor_constr
-from .preprocessing import add_polynomial_features_constr, add_standard_scaler_constr
+from .pls_regression import add_pls_regression_constr
 from .random_forest_regressor import add_random_forest_regressor_constr
-
-
-def sklearn_transformers():
-    return {
-        "StandardScaler": add_standard_scaler_constr,
-        "PolynomialFeatures": add_polynomial_features_constr,
-    }
 
 
 def sklearn_predictors():
@@ -39,4 +32,6 @@ def sklearn_predictors():
         "GradientBoostingRegressor": add_gradient_boosting_regressor_constr,
         "RandomForestRegressor": add_random_forest_regressor_constr,
         "MLPRegressor": add_mlp_regressor_constr,
+        "PLSRegression": add_pls_regression_constr,
+        "PLSCanonical": add_pls_regression_constr,
     }

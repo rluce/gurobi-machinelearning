@@ -1,4 +1,4 @@
-# Copyright © 2022 Gurobi Optimization, LLC
+# Copyright © 2023 Gurobi Optimization, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,13 +13,12 @@
 # limitations under the License.
 # ==============================================================================
 
-""" Module for inserting simple Scikit-Learn regression models into a gurobipy model
+"""Module for inserting simple Scikit-Learn regression models into a gurobipy model.
 
 All linear models should work:
    - :external+sklearn:py:class:`sklearn.linear_model.LinearRegression`
    - :external+sklearn:py:class:`sklearn.linear_model.Ridge`
    - :external+sklearn:py:class:`sklearn.linear_model.Lasso`
-
 """
 
 
@@ -41,8 +40,8 @@ class BaseSKlearnRegressionConstr(SKgetter, AbstractPredictorConstr):
         output_type="",
         **kwargs,
     ):
-        self.n_outputs_ = 1
-        SKgetter.__init__(self, predictor, output_type, **kwargs)
+        self._output_shape = 1
+        SKgetter.__init__(self, predictor, input_vars, output_type, **kwargs)
         AbstractPredictorConstr.__init__(
             self,
             gp_model,
@@ -51,8 +50,10 @@ class BaseSKlearnRegressionConstr(SKgetter, AbstractPredictorConstr):
             **kwargs,
         )
 
-    def add_regression_constr(self):
-        """Add the prediction constraints to Gurobi"""
+    def add_regression_constr(self, output=None):
+        """Add the prediction constraints to Gurobi."""
+        if output is None:
+            output = self.output
         coefs = self.predictor.coef_.reshape(-1, 1)
         intercept = self.predictor.intercept_
-        self.gp_model.addConstr(self.output == self.input @ coefs + intercept, name="linreg")
+        self.gp_model.addConstr(output == self.input @ coefs + intercept, name="linreg")

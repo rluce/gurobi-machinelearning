@@ -5,7 +5,7 @@ jupytext:
     extension: .md
     format_name: myst
     format_version: 0.13
-    jupytext_version: 1.14.1
+    jupytext_version: 1.14.4
 kernelspec:
   display_name: Python 3 (ipykernel)
   language: python
@@ -53,12 +53,9 @@ guacamole needs the right blend of onion, lemon and spices, finding an optimal
 avocado price needs the right blend of descriptive, predictive and prescriptive
 analytics.
 
-|<img
-src="https://github.com/Gurobi/modeling-examples/blob/master/price_optimization/avocado_image_grocery.jpeg?raw=1"
-width="500" align="center">| |:--:| | <b>Avocados: a quintessential corner of a
-grocery store. Image Credits: [New York
-Post](https://nypost.com/2022/02/15/us-will-halt-mexico-avocado-imports-as-long-as-necessary/)
-</b>|
+|<img src="https://github.com/Gurobi/modeling-examples/blob/master/price_optimization/avocado_image_grocery.jpeg?raw=1" width="500" align="center">|
+|:--:|
+| <b>Avocados: a quintessential corner of a grocery store. Image Credits: [New York Post](https://nypost.com/2022/02/15/us-will-halt-mexico-avocado-imports-as-long-as-necessary/) </b>|
 
 
 **Goal**: Develop a data science pipeline for pricing and distribution of
@@ -136,7 +133,6 @@ months.
 # Add the index for each year from 2015 through 2022
 avocado["date"] = pd.to_datetime(avocado["date"])
 avocado["year"] = pd.DatetimeIndex(avocado["date"]).year
-avocado["year_index"] = avocado["year"] - 2015
 avocado = avocado.sort_values(by="date")
 
 # Define the peak season
@@ -157,7 +153,7 @@ avocado["units_sold"] = avocado["units_sold"] / 1000000
 avocado = avocado[avocado["type"] == "Conventional"]
 
 avocado = avocado[
-    ["date", "units_sold", "price", "region", "year", "month", "year_index", "peak"]
+    ["date", "units_sold", "price", "region", "year", "month", "peak"]
 ].reset_index(drop=True)
 
 avocado
@@ -288,37 +284,7 @@ The trends observed in Part I motivate us to construct a prediction model for
 sales using the independent variables- price, year, region and seasonality.
 Henceforth, the sales quantity will be referred to as the *predicted demand*.
 
-Let us now construct a linear regressor for the demand. Note that the region is
-a categorical variable, to encode it for the regression we will use the
-`OneHotEncoder` of `Scikit-learn`.
-
-Because Gurobi Machine Learning doesn't support this column transformation at
-this point, we need to apply the transform to the data directly **before**
-applying the regression. We will then show below how to use it to build the
-model.
-
 +++
-
-We prepare the data using `OneHotEncoder` and `make_column_transformer`. We want
-to transform the region feature using the encoder while the other features
-should be unchanged.
-
-Furthermore, we store in X the transformed data and in y the target value
-units_sold.
-
-```{code-cell} ipython3
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import make_column_transformer
-
-feat_transform = make_column_transformer(
-    (OneHotEncoder(drop="first"), ["region"]),
-    ("passthrough", ["year_index", "price", "peak"]),
-    verbose_feature_names_out=False,
-)
-
-X = feat_transform.fit_transform(df)
-y = df["units_sold"]
-```
 
 To validate the regression model, we will randomly split the dataset into $80\%$
 training and $20\%$ testing data and learn the weights using `Scikit-learn`.
@@ -326,19 +292,42 @@ training and $20\%$ testing data and learn the weights using `Scikit-learn`.
 ```{code-cell} ipython3
 from sklearn.model_selection import train_test_split
 
+X = df[["region", "price", "year", "peak"]]
+y = df["units_sold"]
 # Split the data for training and testing
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, train_size=0.8, random_state=1
 )
 ```
 
-Finally, create the regression model and train it.
+Note that the region is a categorical variable.
+
+To apply a linear regression, we need to transform those variable using an encoding. Here we use Scikit Learn `OneHotEncoder`. We also use a standard scaler for prices and year index. All those transformations are combined with a `Column Transformer` built using `make_column_transformer`.
+
+```{code-cell} ipython3
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import StandardScaler
+from sklearn.compose import make_column_transformer
+
+feat_transform = make_column_transformer(
+    (OneHotEncoder(drop="first"), ["region"]),
+    (StandardScaler(), ["price", "year"]),
+    ("passthrough", ["peak"]),
+    verbose_feature_names_out=False,
+    remainder='drop'
+)
+```
+
+The regression model is a pipeline consisting of the `Column Transformer` we just defined and a Linear Regression.
+
+Define it and train it.
 
 ```{code-cell} ipython3
 from sklearn.linear_model import LinearRegression
+from sklearn.pipeline import make_pipeline
 from sklearn.metrics import r2_score
 
-lin_reg = LinearRegression()
+lin_reg = make_pipeline(feat_transform, LinearRegression())
 lin_reg.fit(X_train, y_train)
 
 # Get R^2 from test data
@@ -420,20 +409,14 @@ data stored in pandas to make sure of that.
 </div>
 
 ```{code-cell} ipython3
-import gurobipy as gp
-from gurobipy import GRB
-
-m = gp.Model("Avocado_Price_Allocation")
-
 # Sets and parameters
-R = len(regions)  # set of all regions
-
 B = 30  # total amount ot avocado supply
 
 peak_or_not = 1  # 1 if it is the peak season; 1 if isn't
 year = 2022
 
 c_waste = 0.1  # the cost ($) of wasting an avocado
+
 # the cost of transporting an avocado
 c_transport = pd.Series(
     {
@@ -445,7 +428,7 @@ c_transport = pd.Series(
         "Southeast": 0.2,
         "West": 0.2,
         "Plains": 0.2,
-    }
+    }, name='transport_cost'
 )
 
 c_transport = c_transport.loc[regions]
@@ -454,96 +437,14 @@ c_transport = c_transport.loc[regions]
 # Get the lower and upper bounds from the dataset for the price and the number of products to be stocked
 a_min = 0  # minimum avocado price in each region
 a_max = 2  # maximum avocado price in each region
-b_min = (
-    df.groupby("region")["units_sold"].min().loc[regions]
-)  # minimum number of avocados allocated to each region
-b_max = (
-    df.groupby("region")["units_sold"].max().loc[regions]
-)  # maximum number of avocados allocated to each region
+
+data = pd.concat([c_transport,
+                  df.groupby("region")["units_sold"].min().rename('min_delivery'),
+                  df.groupby("region")["units_sold"].max().rename('max_delivery')], axis=1)
 ```
 
-### Compute bounds for feature variables
-
-We now compute bounds for our feature variables. This is a bit involved because
-of the one hot encoding and the categorical variables that can't be used in a
-Gurobi model. We need to create variables in the spaces of the transformed
-features after applying `feat_transform`.
-
-To do so, we will first compute lower and upper bounds in the original features
-space (with categorical variables) in a pandas dataframe. Then we reuse the
-`feat_transfrom` object to transform those in the correct space.
-
-The steps to follow are not complicated, but it is not completely intuitive. We
-detail every step.
-
-+++
-
-First, create a dataframe for the lower bounds. It is indexed by the regions (we
-want to use one regression to predict demand for each region) and has the 4
-columns corresponding to the features:
-
-* `price` with the lower bound `a_min`
-* `year_index` with `year - 2015`
-* `peak` with the value of `peak_or_not`
-* `region` that repeat the names of the regions.
-
-Display the dataframe to make sure it is correct
-
 ```{code-cell} ipython3
-feat_lb = pd.DataFrame(
-    data={
-        "price": a_min,
-        "year_index": year - 2015,
-        "peak": peak_or_not,
-        "region": regions,
-    }
-)
-feat_lb
-```
-
-Note that the columns are not in the same order as in the original data. But an
-advantage of using `Scikit-learn`'s `ColumnTransformer` is that it will reorder
-them in its output.
-
-+++
-
-Now we use `feat_transfrom` to transform the dataframe to the space of the
-regression.
-
-We put the results in a dataframe (using `get_feature_names_out` for the columns
-name) and display it (note that it's not necessary to put the results in a
-dataframe, but it's good for checking how it looks):
-
-```{code-cell} ipython3
-feat_lb = pd.DataFrame(
-    data=feat_transform.transform(feat_lb),
-    columns=feat_transform.get_feature_names_out(),
-)
-feat_lb
-```
-
-This is all we needed to do, and we have the correct lower bounds for the
-regression input variables.
-
-We repeat the operations for the upper bounds. In this example, the only
-difference between the lower and upper bounds is the value for the price column
-which is now `a_max`
-
-```{code-cell} ipython3
-feat_ub = pd.DataFrame(
-    data={
-        "price": a_max,
-        "year_index": year - 2015,
-        "peak": peak_or_not,
-        "region": regions,
-    }
-)
-
-feat_ub = pd.DataFrame(
-    data=feat_transform.transform(feat_ub),
-    columns=feat_transform.get_feature_names_out(),
-)
-feat_ub
+data
 ```
 
 ### Decision Variables
@@ -553,40 +454,34 @@ price and number of avocados allocated to each region. We also want variables
 that track how many avocados are predicted to be sold and how many are predicted
 to be wasted. The following notation is used to model these decision variables.
 
-$p$ of shape `(R,)`the price of an avocado ($\$$) in each region,
+$p$ the price of an avocado ($\$$) in each region,
 
-$x$ of shape `(R,)`the number of avocados supplied to each region,
+$x$ the number of avocados supplied to each region,
 
-$s$ of shape `(R,)` the predicted number of avocados sold in each region,
+$s$ the predicted number of avocados sold in each region,
 
-$w$ of shape `(R,)` the predicted number of avocados wasted in each region.
+$w$ the predicted number of avocados wasted in each region.
 
-Finally, we also have the input and output variables of the regression model
-that we denote by `feat_vars` and $d$. The first one has the shape of the bounds
-dataframes that we computed above. The second one has shape `(R,)`.
+$d$ the predicted demand in each region.
 
-The price variable $p$, needs to be extracted from the `feat_vars`. To do so we
-use a mask built using the transformed feature names.
+All those variables are created using gurobipy-pandas, with the function `gppd.add_vars` they are given the same index as the `data` dataframe.
 
 ```{code-cell} ipython3
-x = m.addMVar(R, name="x", lb=b_min, ub=b_max)  # quantity supplied to each region
-s = m.addMVar(
-    R, name="s", lb=0
-)  # predicted amount of sales in each region for the given price
-w = m.addMVar(R, name="w", lb=0)  # excess wasteage in each region
+import gurobipy as gp
+import gurobipy_pandas as gppd
 
-# Add variables for the regression
-feats = m.addMVar(
-    feat_lb.shape, lb=feat_lb.to_numpy(), ub=feat_ub.to_numpy(), name="reg_features"
-)
-d = m.addMVar(R, lb=-gp.GRB.INFINITY, name="demand")
+m = gp.Model("Avocado_Price_Allocation")
 
-# Get the price variables from the features of the regression
-# Compute the mask that will give us the column
-price_index = feat_transform.get_feature_names_out() == "price"
-# Apply the mask, not that it will return a 2d object and we reshape it to 1d.
-p = feats[:, price_index].reshape(-1)
+p = gppd.add_vars(m, data, name="price", lb=a_min, ub=a_max)
+x = gppd.add_vars(m, data, name="x", lb='min_delivery', ub='max_delivery')
+s = gppd.add_vars(m, data, name="s") # predicted amount of sales in each region for the given price).
+w = gppd.add_vars(m, data, name="w") # excess wasteage in each region).
+d = gppd.add_vars(m, data, lb=-gp.GRB.INFINITY, name="demand") # Add variables for the regression
+
 m.update()
+
+# Display one of the variables
+p
 ```
 
 ### Set the Objective
@@ -608,8 +503,8 @@ c^r_{transport} * x_r)& \end{align}
 Let us now add the objective function to the model.
 
 ```{code-cell} ipython3
-m.setObjective(p @ s - c_waste * w.sum() - c_transport.to_numpy() @ x)
-m.ModelSense = GRB.MAXIMIZE
+m.setObjective((p * s).sum() - c_waste * w.sum() - (c_transport * x).sum(),
+               gp.GRB.MAXIMIZE)
 ```
 
 ### Add the Supply Constraint
@@ -649,9 +544,11 @@ the sales are equal to the minimum of supply and predicted demand.
 
 Let us now add these constraints to the model.
 
+In this case, we use gurobipy-pandas, add_constrs function
+
 ```{code-cell} ipython3
-m.addConstr(s <= x)
-m.addConstr(s <= d)
+gppd.add_constrs(m, s, gp.GRB.LESS_EQUAL, x)
+gppd.add_constrs(m, s, gp.GRB.LESS_EQUAL, d)
 m.update()
 ```
 
@@ -666,19 +563,51 @@ mathematically for each region $r$.
 We can add these constraints to the model.
 
 ```{code-cell} ipython3
-m.addConstr(w == x - s)
+gppd.add_constrs(m, w, gp.GRB.EQUAL, x - s)
 m.update()
 ```
 
 ### Add the constraints to predict demand
 
-Using the variables we created above, we just need to call
++++
+
+First, we create our input for the predictor constraint.
+
+The dataframe `feats` will contain features that are fixed:
+
+* `year`
+* `peak` with the value of `peak_or_not`
+* `region` that repeat the names of the regions.
+
+and the price variable `p`.
+
+It is indexed by the regions (we predict the demand independently for each region).
+
+
+Display the dataframe to make sure it is correct
+
+```{code-cell} ipython3
+feats = pd.DataFrame(
+    data={
+        "region": regions,
+        "price": p,
+        "year": year,
+        "peak": peak_or_not,
+    },
+    index=regions
+)
+feats
+```
+
+Now, we just need to call
 [add_predictor_constr](../api/AbstractPredictorConstr.rst#gurobi_ml.add_predictor_constr)
 to insert the constraints linking the features and the demand.
 
 ```{code-cell} ipython3
 from gurobi_ml import add_predictor_constr
+```
 
+```{code-cell} ipython3
 pred_constr = add_predictor_constr(m, lin_reg, feats, d)
 
 pred_constr.print_stats()
@@ -707,17 +636,33 @@ The solver solved the optimization problem in less than a second. Let us now
 analyze the optimal solution by storing it in a Pandas dataframe.
 
 ```{code-cell} ipython3
-solution = pd.DataFrame()
-solution["Region"] = regions
-solution["Price"] = p.X
-solution["Allocated"] = x.X.round(4)
-solution["Sold"] = s.X.round(4)
-solution["Wasted"] = w.X.round(4)
-solution["Pred_demand"] = d.X.round(4)
+solution = pd.DataFrame(index=regions)
+
+solution["Price"] = p.gppd.X
+solution["Allocated"] = x.gppd.X
+solution["Sold"] = s.gppd.X
+solution["Wasted"] = w.gppd.X
+solution["Pred_demand"] = d.gppd.X
 
 opt_revenue = m.ObjVal
 print("\n The optimal net revenue: $%f million" % opt_revenue)
-solution
+solution.round(4)
+```
+
+We can also check the error in the estimate of the Gurobi solution for the regression model.
+
+```{code-cell} ipython3
+print(
+    "Maximum error in approximating the regression {:.6}".format(
+        np.max(pred_constr.get_error())
+    )
+)
+```
+
+And the computed features of the regression model in a pandas dataframe.
+
+```{code-cell} ipython3
+pred_constr.input_values.drop('region', axis=1)
 ```
 
 Let us now visualize a scatter plot between the price and the number of avocados
@@ -725,9 +670,10 @@ sold (in millions) for the eight regions.
 
 ```{code-cell} ipython3
 fig, ax = plt.subplots(1, 1)
-plot_sol = sns.scatterplot(data=solution, x="Price", y="Sold", hue="Region", s=100)
+
+plot_sol = sns.scatterplot(data=solution, x="Price", y="Sold", hue=solution.index, s=100)
 plot_waste = sns.scatterplot(
-    data=solution, x="Price", y="Wasted", marker="x", hue="Region", s=100, legend=False
+    data=solution, x="Price", y="Wasted", marker="x", hue=solution.index, s=100, legend=False
 )
 
 plot_sol.legend(loc="center left", bbox_to_anchor=(1.25, 0.5), ncol=1)
@@ -750,4 +696,4 @@ sure to take look at it.
 
 +++ {"nbsphinx": "hidden"}
 
-Copyright © 2022 Gurobi Optimization, LLC
+Copyright © 2023 Gurobi Optimization, LLC

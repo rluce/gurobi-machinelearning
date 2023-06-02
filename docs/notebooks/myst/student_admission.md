@@ -5,7 +5,7 @@ jupytext:
     extension: .md
     format_name: myst
     format_version: 0.13
-    jupytext_version: 1.14.1
+    jupytext_version: 1.14.4
 kernelspec:
   display_name: Python 3 (ipykernel)
   language: python
@@ -88,11 +88,16 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+import sys
 import gurobipy as gp
+
 from gurobi_ml import add_predictor_constr
+
+import gurobipy_pandas as gppd
 ```
 
 We now retrieve the historical data used to build the regression from Janos
@@ -121,8 +126,9 @@ regression. We build it using the `make_pipeline` from `scikit-learn`.
 
 ```{code-cell} ipython3
 # Run our regression
+scaler = StandardScaler()
 regression = LogisticRegression(random_state=1)
-pipe = make_pipeline(StandardScaler(), LogisticRegression(random_state=1))
+pipe = make_pipeline(scaler, regression)
 pipe.fit(X=historical_data.loc[:, features], y=historical_data.loc[:, target])
 ```
 
@@ -136,65 +142,40 @@ we randomly pick 250 students from it.
 ```{code-cell} ipython3
 # Retrieve new data used to build the optimization problem
 studentsdata = pd.read_csv(janos_data_url + "college_applications6000.csv", index_col=0)
+```
 
+```{code-cell} ipython3
 nstudents = 250
 
 # Select randomly nstudents in the data
 studentsdata = studentsdata.sample(nstudents)
 ```
 
-A non-trivial part of the model is the decision variables that we need for using
-Gurobi Machine Learning.
+We can now create the our model.
 
-In the mathematical formulation above, we only had two vectors of variables `x`
-and `y`. Then each student had associated its score $SAT_i$ and $GPA_i$ that
-were fixed parameters in the optimization. For the Gurobi model, we need to
-create a matrix of variables that also includes the values of $SAT$ and $GPA$ of
-each student. We will fix those variables by giving them the same lower bound
-and upper bound.
-
-Therefore, we need to build 2 matrices of variables, one for each set of bounds,
-and we need to make sure that they are in the same order as the regression model
-would expect.
-
-To do so, we use `pandas` data frames to construct those lower and upper bounds.
-
-To construct the lower bounds, we first make a copy of `studentsdata` and then
-add the `"merit"` column with a value of $0$. We then do the same for the upper
-bound, except that the value for `"merit"`is $2.5$.
-
-```{code-cell} ipython3
-# Construct lower bounds data frame
-feat_lb = studentsdata.copy()
-feat_lb.loc[:, "merit"] = 0
-
-# Construct upper bounds data frame
-feat_ub = studentsdata.copy()
-feat_ub.loc[:, "merit"] = 2.5
-
-# Make sure the columns are ordered in the same way as for the regression model.
-feat_lb = feat_lb[features]
-feat_ub = feat_ub[features]
-```
-
-We can now create the variables for our model: `feature_vars` is initialized
-using the data frames we just created (be careful that they have to be converted
-to `numpy` arrays).
-
-For the rest of the model, we want to recover from the `feature_vars` matrix,
-the column corresponding to merit. With `pandas`, we can use the `get_indexer`
-function to recover the index of this column in our `MVar` matrix.
+Since our data is in pandas data frames, we use the package gurobipy-pandas to help create the variables directly using the index of the data frame.
 
 ```{code-cell} ipython3
 # Start with classical part of the model
 m = gp.Model()
 
-feature_vars = m.addMVar(
-    feat_lb.shape, lb=feat_lb.to_numpy(), ub=feat_ub.to_numpy(), name="feats"
-)
-y = m.addMVar(nstudents, name="y")
+# The y variables are modeling the probability of enrollment of each student. They are indexed by students data
+y = gppd.add_vars(m, studentsdata, name='enroll_probability')
 
-x = feature_vars[:, feat_lb.columns.get_indexer(["merit"])][:, 0]
+# We add to studentsdata a column of variables to model the "merit" feature. Those variable are between 0 and 2.5.
+# They are added directly to the data frame using the gppd extension.
+studentsdata = studentsdata.gppd.add_vars(m, lb=0.0, ub=2.5, name='merit')
+
+# We denote by x the (variable) "merit" feature
+x = studentsdata.loc[:, "merit"]
+
+# Make sure that studentsdata contains only the features column and in the right order
+studentsdata = studentsdata.loc[:, features]
+
+m.update()
+
+# Let's look at our features dataframe for the optimization
+studentsdata[:10]
 ```
 
 We add the objective and the budget constraint:
@@ -209,14 +190,14 @@ m.update()
 Finally, we insert the constraints from the regression. In this model we want to
 have use the probability estimate of a student joining the college, so we choose
 the parameter `output_type` to be `"probability_1"`. Note that due to the shapes
-of the `feature_vars` matrix and `y`, this will insert one regression constraint
+of the `studentsdata` data frame and `y`, this will insert one regression constraint
 for each student.
 
 With the `print_stats` function we display what was added to the model.
 
 ```{code-cell} ipython3
 pred_constr = add_predictor_constr(
-    m, pipe, feature_vars, y, output_type="probability_1"
+    m, pipe, studentsdata, y, output_type="probability_1"
 )
 
 pred_constr.print_stats()
@@ -233,7 +214,8 @@ approximation of the logistic function. We can therefore get some significant
 errors when comparing the results of the Gurobi model with what is predicted by
 the regression.
 
-We print the error. Here we need to use `get_error_proba`.
+We print the error using [get_error](../api/AbstractPredictorConstr.rst#gurobi_ml.modeling.base_predictor_constr.AbstractPredictorConstr.get_error) (note that we take the maximal error
+over all input vectors).
 
 ```{code-cell} ipython3
 print(
@@ -265,11 +247,11 @@ pred_constr.remove()
 pwl_attributes = {
     "FuncPieces": -1,
     "FuncPieceLength": 0.01,
-    "FuncPieceError": 1e-4,
+    "FuncPieceError": 1e-5,
     "FuncPieceRatio": -1.0,
 }
 pred_constr = add_predictor_constr(
-    m, pipe, feature_vars, y, output_type="probability_1", pwl_attributes=pwl_attributes
+    m, pipe, studentsdata, y, output_type="probability_1", pwl_attributes=pwl_attributes
 )
 
 m.optimize()
@@ -285,6 +267,12 @@ print(
 )
 ```
 
+Finally note that we can directly get the input values for the regression in a solution as a pandas dataframe using input_values.
+
+```{code-cell} ipython3
+pred_constr.input_values
+```
+
 +++ {"nbsphinx": "hidden"}
 
-Copyright © 2022 Gurobi Optimization, LLC
+Copyright © 2023 Gurobi Optimization, LLC

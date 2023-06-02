@@ -1,4 +1,4 @@
-# Copyright © 2022 Gurobi Optimization, LLC
+# Copyright © 2023 Gurobi Optimization, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,11 @@
 # limitations under the License.
 # ==============================================================================
 
-""" Utility function to find function that add a predictor in dictionnary """
+"""Utility function to find function that add a predictor in dictionnary."""
 
 
 def get_convertor(predictor, convertors):
-    """Return the convertor for a given predictor"""
+    """Return the convertor for a given predictor."""
     convertor = None
     try:
         convertor = convertors[type(predictor)]

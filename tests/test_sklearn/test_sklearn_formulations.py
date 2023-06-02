@@ -29,10 +29,17 @@ class TestSklearnModel(FixedRegressionModel):
             self.assertEqual(len(predictor), len(pred_constr))
             for i in range(len(pred_constr)):
                 predictor_name = type(predictor[i]).__name__
-                linear = ["Lasso", "Ridge"]
-                if predictor_name in linear:
+                if predictor_name in ["Lasso", "Ridge"]:
                     predictor_name = "LinearRegression"
-                self.assertEqual(predictor_name, type(pred_constr[i]).__name__[: -len("Constr")])
+                if predictor_name in ["PLSRegression", "PLSCanonical"]:
+                    predictor_name = "PLSRegression"
+                self.assertEqual(
+                    predictor_name, type(pred_constr[i]).__name__[: -len("Constr")]
+                )
+            self.assertLessEqual(
+                np.max(pred_constr[i].get_error().astype(float)),
+                np.max(pred_constr.get_error()),
+            )
 
     def test_diabetes_sklearn(self):
         data = datasets.load_diabetes()
@@ -44,6 +51,10 @@ class TestSklearnModel(FixedRegressionModel):
             onecase = cases.get_case(regressor)
             self.do_one_case(onecase, X, 5, "all", float_type=np.float32)
             self.do_one_case(onecase, X, 6, "pairs", float_type=np.float32)
+            self.do_one_case(onecase, X, 5, "all", float_type=np.float32, no_debug=True)
+            self.do_one_case(
+                onecase, X, 6, "pairs", float_type=np.float32, no_debug=True
+            )
 
     def test_iris_proba(self):
         data = datasets.load_iris()
@@ -60,6 +71,12 @@ class TestSklearnModel(FixedRegressionModel):
             onecase = cases.get_case(regressor)
             self.do_one_case(onecase, X, 5, "all", output_type="probability_1")
             self.do_one_case(onecase, X, 6, "pairs", output_type="probability_1")
+            self.do_one_case(
+                onecase, X, 5, "all", output_type="probability_1", no_debug=True
+            )
+            self.do_one_case(
+                onecase, X, 6, "pairs", output_type="probability_1", no_debug=True
+            )
 
     def test_iris_clf(self):
         data = datasets.load_iris()
@@ -107,6 +124,8 @@ class TestSklearnModel(FixedRegressionModel):
             X = onecase["data"]
             self.do_one_case(onecase, X, 5, "all")
             self.do_one_case(onecase, X, 6, "pairs")
+            self.do_one_case(onecase, X, 5, "all", no_debug=True)
+            self.do_one_case(onecase, X, 6, "pairs", no_debug=True)
 
 
 class TestMNIST(unittest.TestCase):
@@ -126,7 +145,9 @@ class TestMNIST(unittest.TestCase):
 
             predictor.out_activation_ = "identity"
             register_predictor_constr("MLPClassifier", add_mlp_regressor_constr)
-            pred_constr = add_predictor_constr(gpm, predictor, x, output_type="probability")
+            pred_constr = add_predictor_constr(
+                gpm, predictor, x, output_type="probability"
+            )
 
             y = pred_constr.output
             with self.assertRaises(NoSolution):

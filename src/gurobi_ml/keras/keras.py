@@ -1,4 +1,4 @@
-# Copyright © 2022 Gurobi Optimization, LLC
+# Copyright © 2023 Gurobi Optimization, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,8 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 
-""" Module for embedding a Keras model into a :gurobipy:`model`
-"""
+"""Module for formulating a Keras model into a :gurobipy:`model`."""
 
 import numpy as np
 from tensorflow import keras
@@ -24,27 +23,33 @@ from ..modeling.neuralnet import BaseNNConstr
 
 
 def add_keras_constr(gp_model, keras_model, input_vars, output_vars=None, **kwargs):
-    """Embed keras_model into gp_model
+    """Formulate keras_model into gp_model.
 
-    Predict the values of output_vars using input_vars
+    The formulation predicts the values of output_vars using input_vars according to keras_model.
+    See our :ref:`Users Guide <Neural Networks>` for details on the mip formulation used.
 
     Parameters
     ----------
-    gp_model: :gurobipy:`model`
+    gp_model : :gurobipy:`model`
         The gurobipy model where the predictor should be inserted.
-    keras_model: `keras.Model <https://keras.io/api/models/model/>`
+    keras_model : `keras.Model <https://keras.io/api/models/model/>`
         The keras model to insert as predictor.
-    input_vars: :gurobipy:`mvar` or :gurobipy:`var` array like
+    input_vars : :gurobipy:`mvar` or :gurobipy:`var` array like
         Decision variables used as input for Keras model in gp_model.
-    output_vars: :gurobipy:`mvar` or :gurobipy:`var` array like, optional
+    output_vars : :gurobipy:`mvar` or :gurobipy:`var` array like, optional
         Decision variables used as output for Keras model in gp_model.
 
     Returns
     -------
     KerasNetworkConstr
-        Object containing information about what was added to gp_model to embed the
-        predictor into it
+        Object containing information about what was added to gp_model to formulate
+        keras_model into it
 
+    Raises
+    ------
+    NoModel
+        If the translation for some of the Keras model structure
+        (layer or activation) is not implemented.
 
     Warning
     -------
@@ -52,12 +57,6 @@ def add_keras_constr(gp_model, keras_model, input_vars, output_vars=None, **kwar
       Only `Dense <https://keras.io/api/layers/core_layers/dense/>`_ (possibly
       with `relu` activation), and `ReLU <https://keras.io/api/layers/activation_layers/relu/>`_ with
       default settings are supported.
-
-    Raises
-    ------
-    NoModel
-        If the translation for some of the Keras model structure
-        (layer or activation) is not implemented.
 
     Note
     ----
@@ -67,6 +66,11 @@ def add_keras_constr(gp_model, keras_model, input_vars, output_vars=None, **kwar
 
 
 class KerasNetworkConstr(BaseNNConstr):
+    """Class to model trained `keras.Model <https://keras.io/api/models/model/>` with gurobipy.
+
+    |ClassShort|
+    """
+
     def __init__(self, gp_model, predictor, input_vars, output_vars=None, **kwargs):
         assert predictor.built
         for step in predictor.layers:
@@ -77,15 +81,21 @@ class KerasNetworkConstr(BaseNNConstr):
                     raise NoModel(predictor, f"Unsupported activation {activation}")
             elif isinstance(step, keras.layers.ReLU):
                 if step.negative_slope != 0.0:
-                    raise NoModel(predictor, "Only handle ReLU layers with negative slope 0.0")
+                    raise NoModel(
+                        predictor, "Only handle ReLU layers with negative slope 0.0"
+                    )
                 if step.threshold != 0.0:
-                    raise NoModel(predictor, "Only handle ReLU layers with threshold of 0.0")
+                    raise NoModel(
+                        predictor, "Only handle ReLU layers with threshold of 0.0"
+                    )
                 if step.max_value is not None and step.max_value < float("inf"):
                     raise NoModel(predictor, "Only handle ReLU layers without maxvalue")
             elif isinstance(step, keras.layers.InputLayer):
                 pass
             else:
-                raise NoModel(predictor, f"Unsupported network layer {type(step).__name__}")
+                raise NoModel(
+                    predictor, f"Unsupported network layer {type(step).__name__}"
+                )
 
         super().__init__(gp_model, predictor, input_vars, output_vars, **kwargs)
 
@@ -102,7 +112,7 @@ class KerasNetworkConstr(BaseNNConstr):
                 pass
             elif isinstance(step, keras.layers.ReLU):
                 layer = self.add_activation_layer(
-                    _input, self.act_dict["relu"], output, name="relu"
+                    _input, self.act_dict["relu"], output, name=f"relu{i}", **kwargs
                 )
                 _input = layer.output
             else:
@@ -112,13 +122,19 @@ class KerasNetworkConstr(BaseNNConstr):
                     activation = "identity"
                 weights, bias = step.get_weights()
                 layer = self.add_dense_layer(
-                    _input, weights, bias, self.act_dict[activation], output, name="dense"
+                    _input,
+                    weights,
+                    bias,
+                    self.act_dict[activation],
+                    output,
+                    name=f"dense{i}",
+                    **kwargs,
                 )
                 _input = layer.output
         if self._output is None:
             self._output = layer.output
 
     def get_error(self):
-        if self._has_solution():
-            return np.abs(self.predictor.predict(self.input.X) - self.output.X)
+        if self._has_solution:
+            return np.abs(self.predictor.predict(self.input_values) - self.output.X)
         raise NoSolution()

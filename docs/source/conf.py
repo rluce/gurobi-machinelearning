@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath("../../src/"))
 config = SphinxConfig("../../pyproject.toml", globalns=globals())
 
 project = "Gurobi Machine Learning"
-copyright = "2022, Gurobi Optimization, LLC. All Rights Reserved."
+copyright = "2023, Gurobi Optimization, LLC. All Rights Reserved."
 html_logo = "_static/gurobi-logo-title.png"
 
 # -- General configuration ---------------------------------------------------
@@ -57,9 +57,11 @@ dep_versions = get_versions(root_path / "requirements.tox.txt")
 dep_versions = get_versions(root_path / "requirements.keras.txt", dep_versions)
 dep_versions = get_versions(root_path / "requirements.pytorch.txt", dep_versions)
 dep_versions = get_versions(root_path / "requirements.sklearn.txt", dep_versions)
+dep_versions = get_versions(root_path / "requirements.pandas.txt", dep_versions)
 
 
 VARS_SHAPE = """See :py:func:`add_predictor_constr <gurobi_ml.add_predictor_constr>` for acceptable values for input_vars and output_vars"""
+CLASS_SHORT = """Stores the changes to :gurobipy:`model` for representing an instance into it.\n    Inherits from :class:`AbstractPredictorConstr <gurobi_ml.modeling.base_predictor_constr.AbstractPredictorConstr>`.\n"""
 
 
 rst_epilog = f"""
@@ -71,6 +73,7 @@ rst_epilog = f"""
 .. |SklearnVersion| replace:: {dep_versions["scikit-learn"]}
 .. |TensorflowVersion| replace:: {dep_versions["tensorflow"]}
 .. |VariablesDimensionsWarn| replace:: {VARS_SHAPE}
+.. |ClassShort| replace:: {CLASS_SHORT}
 """
 
 # Add any paths that contain templates here, relative to this directory.
@@ -113,6 +116,20 @@ bibtex_bibfiles = ["refs.bib"]
 extlinks_detect_hardcoded_links = True
 extlinks = {
     "issue": ("https://github.com/Gurobi/gurobi-machinelearning/issues/%s", "issue %s"),
-    "gurobipy": ("https://www.gurobi.com/documentation/current/refman/py_%s.html", "gurobipy %s"),
+    "gurobipy": (
+        "https://www.gurobi.com/documentation/current/refman/py_%s.html",
+        "gurobipy %s",
+    ),
     "pypi": ("https://pypi.org/project/%s/", "%s"),
+}
+
+# -- Options for LaTeX output -----------------------------------------------------
+latex_logo = "_static/gurobi.png"
+
+latex_elements = {
+    "preamble": r"""
+    \newcommand\sphinxbackoftitlepage{%
+Copyright(c), 2023, Gurobi Optimization, LLC. All Rights Reserved.
+}
+    """,
 }

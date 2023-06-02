@@ -1,4 +1,4 @@
-# Copyright © 2022 Gurobi Optimization, LLC
+# Copyright © 2023 Gurobi Optimization, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,52 +13,60 @@
 # limitations under the License.
 # ==============================================================================
 
-""" Module for embeding a :external+sklearn:py:class:`sklearn.neural_network.MLPRegressor` into a
-:gurobipy:`model`
+"""Module for formulating a :external+sklearn:py:class:`sklearn.neural_network.MLPRegressor` in a
+:gurobipy:`model`.
 """
 from ..exceptions import NoModel
 from ..modeling.neuralnet import BaseNNConstr
 from .skgetter import SKgetter
 
 
-def add_mlp_regressor_constr(gp_model, mlp_regressor, input_vars, output_vars=None, **kwargs):
-    """Embed mlp_regressor into gp_model
+def add_mlp_regressor_constr(
+    gp_model, mlp_regressor, input_vars, output_vars=None, **kwargs
+):
+    """Formulate mlp_regressor in gp_model.
 
-    Predict the values of output_vars using input_vars
+    The formulation predicts the values of output_vars using input_vars according to
+    mlp_regressor. See our :ref:`Users Guide <Neural Networks>` for details on the mip
+    formulation used.
 
     Parameters
     ----------
-    gp_model: :gurobipy:`model`
+    gp_model : :gurobipy:`model`
         The gurobipy model where the predictor should be inserted.
-    mlpregressor: :external+sklearn:py:class:`sklearn.neural_network.MLPRegressor`
+    mlpregressor : :external+sklearn:py:class:`sklearn.neural_network.MLPRegressor`
         The multi-layer perceptron regressor to insert as predictor.
-    input_vars: :gurobipy:`mvar` or :gurobipy:`var` array like
+    input_vars : :gurobipy:`mvar` or :gurobipy:`var` array like
         Decision variables used as input for regression in model.
-    output_vars: :gurobipy:`mvar` or :gurobipy:`var` array like, optional
+    output_vars : :gurobipy:`mvar` or :gurobipy:`var` array like, optional
         Decision variables used as output for regression in model.
 
     Returns
     -------
     MLPRegressorConstr
-        Object containing information about what was added to gp_model to embed the
-        predictor into it
+        Object containing information about what was added to gp_model to formulate
+        mlp_regressor.
 
     Raises
     ------
     NoModel
-        If the translation to Gurobi of the activation function for the network
-        is not implemented.
+        If the translation to Gurobi of the activation function for the network is not
+        implemented.
 
     Note
     ----
     |VariablesDimensionsWarn|
     """
-    return MLPRegressorConstr(gp_model, mlp_regressor, input_vars, output_vars, **kwargs)
+    return MLPRegressorConstr(
+        gp_model, mlp_regressor, input_vars, output_vars, **kwargs
+    )
 
 
 class MLPRegressorConstr(SKgetter, BaseNNConstr):
-    """Predict a Gurobi matrix variable using a neural network that
-    takes another Gurobi matrix variable as input.
+    """Class to model trained
+    :external+sklearn:py:class:`sklearn.neural_network.MLPRegressor` with gurobipy.
+
+    |ClassShort|
     """
 
     def __init__(
@@ -70,7 +78,7 @@ class MLPRegressorConstr(SKgetter, BaseNNConstr):
         clean_predictor=False,
         **kwargs,
     ):
-        SKgetter.__init__(self, predictor, **kwargs)
+        SKgetter.__init__(self, predictor, input_vars, **kwargs)
         BaseNNConstr.__init__(
             self,
             gp_model,
@@ -83,10 +91,9 @@ class MLPRegressorConstr(SKgetter, BaseNNConstr):
         assert predictor.out_activation_ in ("identity", "relu")
 
     def _mip_model(self, **kwargs):
-        """Add the prediction constraints to Gurobi"""
+        """Add the prediction constraints to Gurobi."""
         neural_net = self.predictor
         if neural_net.activation not in self.act_dict:
-            print(self.act_dict)
             raise NoModel(
                 neural_net,
                 f"No implementation for activation function {neural_net.activation}",
@@ -111,6 +118,7 @@ class MLPRegressorConstr(SKgetter, BaseNNConstr):
                 layer_intercept,
                 activation,
                 output,
+                **kwargs,
             )
             input_vars = layer._output  # pylint: disable=W0212
             self._gp_model.update()

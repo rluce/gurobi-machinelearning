@@ -1,4 +1,4 @@
-# Copyright © 2022 Gurobi Optimization, LLC
+# Copyright © 2023 Gurobi Optimization, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,11 +13,13 @@
 # limitations under the License.
 # ==============================================================================
 
-"""Building Sub-models with gurobipy"""
+"""Building Sub-models with gurobipy."""
+
+from time import time
 
 
 class SubModel:
-    """Base class for building and representing a sub-model embedded in a gurobipy.Model.
+    """Base class for building and representing a MIP formulation embedded in a gurobipy.Model.
 
     When instantiating this class, a (sub-)model is created in the provided
     gurobipy.Model.  The instance represents the sub-model that was created,
@@ -89,7 +91,6 @@ class SubModel:
 
     Parameters
     ----------
-
     """
 
     def __init__(
@@ -117,11 +118,37 @@ class SubModel:
         if not hasattr(self, "_default_name"):
             self._default_name = type(self).__name__
 
+        self.verbose = False
+        if "verbose" in kwargs:
+            self.verbose = kwargs["verbose"]
+            self._timer = SubModel._ModelingTimer()
+            print()
+            self._timer.timing(f"Start building formulation for {self._default_name}")
+
+        self._no_recording = False
+        if "no_record" in kwargs:
+            self._no_recording = kwargs["no_record"]
+
+        self._no_debug = False
+        if "no_debug" in kwargs:
+            self._no_debug = kwargs["no_debug"]
         before = self._open(gp_model)
+
+        if self.verbose:
+            self._timer.timing("Model statistics")
+
         self._objects = self._build_submodel(gp_model, *args, **kwargs)
+
+        if self.verbose:
+            self._timer.timing("Built model")
+
         if self._objects is None:
             self._objects = {}
+
         self._close(before, name)
+
+        if self.verbose:
+            print()
 
     def _build_submodel(self, gp_model, *args, **kwargs):
         """Method to be overridden for generating the model in a sub-class.
@@ -131,8 +158,20 @@ class SubModel:
         """
         return self._model_function(gp_model, *args, **kwargs)
 
+    class _ModelingTimer:
+        def __init__(self):
+            self.start = time()
+            self.last = self.start
+
+        def timing(self, message: str):
+            current = time()
+            print(
+                f"{message} in {current - self.last:.2f} secs (total: {current - self.start:.2f})."
+            )
+            self.last = current
+
     class _ModelingData:
-        """Class for recording modeling data in a gurobipy.Model object"""
+        """Class for recording modeling data in a gurobipy.Model object."""
 
         def __init__(self):
             self.name_handler = None
@@ -144,28 +183,28 @@ class SubModel:
             return name_handler
 
         def push_name_handler(self, name_handler):
-            """install name handler"""
+            """Install name handler."""
             self.name_handler = name_handler
 
     class _modelstats:
-        """Helper class for recording gurobi model dimensions
+        """Helper class for recording gurobi model dimensions.
 
         Parameters
         ----------
-        gp_model: gp.Model <https://www.gurobi.com/documentation/9.5/refman/py_model.html>
+        gp_model : gp.Model <https://www.gurobi.com/documentation/9.5/refman/py_model.html>
             A gurobipy model
 
         Attributes
         ----------
-        numvars: int
+        numvars : int
             Number of variables in `gp_model`.
-        numconstrs: int
+        numconstrs : int
             Number of constraints in `gp_model`.
-        numsos: int
+        numsos : int
             Number of SOS constraints in `gp_model`
-        numqconstrs: int
+        numqconstrs : int
             Number of quadratic constraints in `gp_model`
-        numgenconstrs: int
+        numgenconstrs : int
             Number of general constraints in `gp_model`
         """
 
@@ -196,7 +235,9 @@ class SubModel:
             self._lastconstr = None
         # range of Q constraints
         if gp_model.numqconstrs > before.numqconstrs:
-            self._qconstrs = gp_model.getQConstrs()[before.numqconstrs : gp_model.numqconstrs]
+            self._qconstrs = gp_model.getQConstrs()[
+                before.numqconstrs : gp_model.numqconstrs
+            ]
         else:
             self._qconstrs = []
         # range of GenConstrs
@@ -216,14 +257,18 @@ class SubModel:
     def vars(self):
         """Return the list of variables in the submodel."""
         if self._firstvar:
-            return self._gp_model.getVars()[self._firstvar.index : self._lastvar.index + 1]
+            return self._gp_model.getVars()[
+                self._firstvar.index : self._lastvar.index + 1
+            ]
         return []
 
     @property
     def constrs(self):
         """Return the list of linear constraints in the submodel."""
         if self._firstconstr:
-            return self._gp_model.getConstrs()[self._firstconstr.index : self._lastconstr.index + 1]
+            return self._gp_model.getConstrs()[
+                self._firstconstr.index : self._lastconstr.index + 1
+            ]
         return []
 
     @property
@@ -242,7 +287,7 @@ class SubModel:
         return self._sos
 
     def _open(self, gp_model):
-        """Start registering modeling object that are added to the gurobipy.Model"""
+        """Start registering modeling object that are added to the gurobipy.Model."""
         self._gp_model = gp_model
         try:
             modeling_data = gp_model._modeling_data
@@ -250,7 +295,11 @@ class SubModel:
             modeling_data = SubModel._ModelingData()
         gp_model._modeling_data = modeling_data
 
-        return (self._modelstats(gp_model), gp_model._modeling_data.pop_name_handler())
+        if self._no_recording:
+            modelstats = None
+        else:
+            modelstats = self._modelstats(gp_model)
+        return (modelstats, gp_model._modeling_data.pop_name_handler())
 
     def _close(self, before, name):
         """Finalize addition of modeling objects to the gurobipy.Model object.
@@ -259,23 +308,25 @@ class SubModel:
         """
 
         class NameHandler:
-            """Handle automatic name generation in gp.Model"""
+            """Handle automatic name generation in gp.Model."""
 
             def __init__(self):
                 self.name = {}
 
-            def get_name(self, sub: SubModel):
+            def get_name(self, sub: SubModel, name: str):
                 """Return a default name for specified submodel sub."""
-                name = sub.default_name
+                if name is None or name == "":
+                    name = sub.default_name
                 try:
                     num = self.name[name]
+                    self.name[name] = num + 1
+                    return f"{name}{num}"
                 except KeyError:
-                    num = 1
-                self.name[name] = num + 1
-                return f"{name}{num}"
+                    self.name[name] = 0
+                    return name
 
         def prefix_names(gp_model, objs, attr, name):
-            """Prefix all modeling object names with name"""
+            """Prefix all modeling object names with name."""
             if len(objs) == 0:
                 return
             object_names = gp_model.getAttr(attr, objs)
@@ -285,17 +336,20 @@ class SubModel:
         # re-install name handler
         self._gp_model._modeling_data.push_name_handler(before[1])
 
+        if self._no_recording:
+            return
+
         # record all newly added modeling objects
         self._record(self._gp_model, before[0])
 
-        # prefix names of newly created modeling objects
+        name_handler = self._gp_model._modeling_data.name_handler
+        if name_handler is None:
+            name_handler = NameHandler()
+            self._gp_model._modeling_data.push_name_handler(name_handler)
+
         if name != "":
-            if name is None:
-                name_handler = self._gp_model._modeling_data.name_handler
-                if name_handler is None:
-                    name_handler = NameHandler()
-                    self._gp_model._modeling_data.push_name_handler(name_handler)
-                name = name_handler.get_name(self)
+            # prefix names of newly created modeling objects
+            name = name_handler.get_name(self, name)
             self._name = name
             prefix_names(self._gp_model, self.vars, "VarName", name)
             prefix_names(self._gp_model, self.constrs, "ConstrName", name)
@@ -303,9 +357,13 @@ class SubModel:
             prefix_names(self._gp_model, self.genconstrs, "GenConstrName", name)
             # SOS can't have a name! :-O
             # prefix_names(self._gp_model, self.sos, "SOSName", name)
+        else:
+            name = name_handler.get_name(self, name)
+        if self.verbose:
+            self._timer.timing(f"Added {name}")
 
-    def print_stats(self, file=None):
-        """Print statistics about submodel
+    def print_stats(self, abbrev=False, file=None):
+        """Print statistics about submodel.
 
         This functions prints detailed statistics on the variables
         and constraints that where added to the gp_model using this object.
@@ -315,11 +373,13 @@ class SubModel:
         layers if it's a neural network,...)
 
         Parameters
-        ---------
+        ----------
 
-        file: None, optional
+        file : None, optional
             Text stream to which output should be redirected. By default sys.stdout.
         """
+        if abbrev:
+            return
         name = self._name
         print(f"Model for {name}:", file=file)
         print(f"{len(self.vars)} variables", file=file)
@@ -336,18 +396,19 @@ class SubModel:
 
     @property
     def gp_model(self):
-        """Access gurobipy model the submodel is a part of"""
+        """Access gurobipy model the submodel is a part of."""
         return self._gp_model
 
     @property
     def default_name(self):
         """Access the default name base used for automatic name generation.
 
-        :meta private:"""
+        :meta private:
+        """
         return self._default_name
 
     def remove(self):
-        """Remove the submodel from the model"""
+        """Remove the submodel from the model."""
         if self._gp_model:
             self._gp_model.remove(self.vars)
             self._gp_model.remove(self.constrs)
